@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useI18n } from '@/lib/i18n'
 import { useToast } from '@/components/toast'
-import { Button, EmptyState, Input, LoadingScreen, Modal, Pagination, Select } from '@/components/ui'
+import { Button, EmptyState, Input, LoadingScreen, Modal, Pagination } from '@/components/ui'
 import { PageHeader } from '@/components/page-header'
 import { signOut } from 'next-auth/react'
 
-type Product = { id: string; name: string; sku: string; basePrice: number; quantity: number; imageUrl: string | null }
+type Product = { id: string; name: string; sku: string; brand: string | null; basePrice: number; quantity: number; imageUrl: string | null }
 type SaleItem = {
   productId: string
   quantity: number
@@ -26,6 +26,82 @@ type Sale = {
 }
 
 const PER_PAGE = 10
+
+function ProductSearch({
+  products,
+  value,
+  onSelect,
+  label,
+}: {
+  products: Product[]
+  value: string
+  onSelect: (id: string) => void
+  label: string
+}) {
+  const { t } = useI18n()
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const selected = products.find((p) => p.id === value)
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    const list = q
+      ? products.filter(
+          (p) =>
+            p.name.toLowerCase().includes(q) ||
+            p.sku.toLowerCase().includes(q) ||
+            (p.brand || '').toLowerCase().includes(q)
+        )
+      : products
+    return list.slice(0, 30)
+  }, [products, query])
+
+  return (
+    <div className="relative">
+      <label className="mb-1.5 block text-sm font-medium text-slate-700">{label}</label>
+      <input
+        value={selected && !query ? `${selected.name} (${selected.sku})` : query}
+        onChange={(e) => {
+          setQuery(e.target.value)
+          if (value) onSelect('')
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        placeholder={t('searchByNameSku')}
+        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+      />
+      {open && (
+        <div className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+          {filtered.length === 0 ? (
+            <p className="px-3 py-2 text-sm text-slate-400">{t('noProducts')}</p>
+          ) : (
+            filtered.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  onSelect(p.id)
+                  setQuery('')
+                  setOpen(false)
+                }}
+                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm transition hover:bg-slate-50"
+              >
+                <span className="min-w-0 truncate text-slate-800">
+                  {p.name}
+                  <span className="text-slate-400"> ({p.sku})</span>
+                </span>
+                <span className="shrink-0 text-xs text-slate-500">
+                  {t('currentStock')}: {p.quantity}
+                </span>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function SalesManager() {
   const { t, formatMoney, formatDateTime } = useI18n()
@@ -235,14 +311,7 @@ export default function SalesManager() {
       <Modal open={newSaleOpen} onClose={() => { if (!saving) setNewSaleOpen(false) }} title={t('newSale')} wide>
         <div className="space-y-4">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_90px_110px_auto]">
-            <Select label={t('selectProduct')} value={selectedProduct} onChange={handleSelectProduct}>
-              <option value="">{t('selectProduct')}...</option>
-              {products.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({p.sku}) — {t('currentStock')}: {p.quantity}
-                </option>
-              ))}
-            </Select>
+            <ProductSearch products={products} value={selectedProduct} onSelect={handleSelectProduct} label={t('selectProduct')} />
             <Input label={t('quantity')} type="number" min="1" value={selectedQty} onChange={setSelectedQty} />
             <Input label={t('sellingPrice')} type="number" step="0.01" min="0" value={selectedPrice} onChange={setSelectedPrice} />
             <div className="flex items-end">
