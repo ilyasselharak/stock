@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useI18n } from '@/lib/i18n'
 import { useToast } from '@/components/toast'
 import { Button, EmptyState, Input, LoadingScreen, Modal, Pagination, Select, StatusBadge } from '@/components/ui'
@@ -40,10 +40,86 @@ type CreditSale = {
 }
 
 type Customer = { id: string; fullName: string }
-type Product = { id: string; name: string; sku: string; basePrice: number; quantity: number }
+type Product = { id: string; name: string; sku: string; brand: string | null; basePrice: number; quantity: number }
 type CartItem = { productId: string; productName: string; quantity: number; price: number }
 
 const PER_PAGE = 10
+
+function ProductSearch({
+  products,
+  value,
+  onSelect,
+  label,
+}: {
+  products: Product[]
+  value: string
+  onSelect: (id: string) => void
+  label: string
+}) {
+  const { t } = useI18n()
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const selected = products.find((p) => p.id === value)
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    const list = q
+      ? products.filter(
+          (p) =>
+            p.name.toLowerCase().includes(q) ||
+            p.sku.toLowerCase().includes(q) ||
+            (p.brand || '').toLowerCase().includes(q)
+        )
+      : products
+    return list.slice(0, 30)
+  }, [products, query])
+
+  return (
+    <div className="relative">
+      <label className="mb-1.5 block text-sm font-medium text-slate-700">{label}</label>
+      <input
+        value={selected && !query ? `${selected.name} (${selected.sku})` : query}
+        onChange={(e) => {
+          setQuery(e.target.value)
+          if (value) onSelect('')
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        placeholder={t('searchByNameSku')}
+        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+      />
+      {open && (
+        <div className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+          {filtered.length === 0 ? (
+            <p className="px-3 py-2 text-sm text-slate-400">{t('noProducts')}</p>
+          ) : (
+            filtered.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  onSelect(p.id)
+                  setQuery('')
+                  setOpen(false)
+                }}
+                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm transition hover:bg-slate-50"
+              >
+                <span className="min-w-0 truncate text-slate-800">
+                  {p.name}
+                  <span className="text-slate-400"> ({p.sku})</span>
+                </span>
+                <span className="shrink-0 text-xs text-slate-500">
+                  {t('currentStock')}: {p.quantity}
+                </span>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function PaymentsManager() {
   const { t, formatMoney, formatDateTime } = useI18n()
@@ -61,6 +137,7 @@ export default function PaymentsManager() {
   const [cart, setCart] = useState<CartItem[]>([])
   const [selectedProduct, setSelectedProduct] = useState('')
   const [selectedQty, setSelectedQty] = useState('1')
+  const [selectedPrice, setSelectedPrice] = useState('')
 
   const [payModal, setPayModal] = useState<CreditSale | null>(null)
   const [payAmount, setPayAmount] = useState('')
@@ -107,6 +184,7 @@ export default function PaymentsManager() {
     setCart([])
     setSelectedProduct('')
     setSelectedQty('1')
+    setSelectedPrice('')
     setCreateOpen(true)
   }
 
@@ -114,6 +192,8 @@ export default function PaymentsManager() {
 
   function handleSelectProduct(id: string) {
     setSelectedProduct(id)
+    const p = products.find((x) => x.id === id)
+    if (p) setSelectedPrice(String(p.basePrice))
   }
 
   function addToCart() {
@@ -123,7 +203,7 @@ export default function PaymentsManager() {
     }
     const p = products.find((x) => x.id === selectedProduct)!
     const qty = parseInt(selectedQty) || 1
-    const price = p.basePrice
+    const price = parseFloat(selectedPrice) || p.basePrice
     if (qty > p.quantity) {
       toast(`${t('notEnoughStock')}: ${p.quantity}`, 'error')
       return
@@ -139,6 +219,7 @@ export default function PaymentsManager() {
     })
     setSelectedProduct('')
     setSelectedQty('1')
+    setSelectedPrice('')
   }
 
   function removeFromCart(productId: string) {
@@ -304,16 +385,10 @@ export default function PaymentsManager() {
           {/* Product picker */}
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-700">{t('products')}</label>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_90px_auto]">
-              <Select label="" value={selectedProduct} onChange={handleSelectProduct}>
-                <option value="">{t('selectProduct2')}...</option>
-                {products.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} ({p.sku}) — {t('currentStock')}: {p.quantity}
-                  </option>
-                ))}
-              </Select>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_90px_110px_auto]">
+              <ProductSearch products={products} value={selectedProduct} onSelect={handleSelectProduct} label={t('selectProduct2')} />
               <Input label="" type="number" min="1" value={selectedQty} onChange={setSelectedQty} placeholder={t('quantity')} />
+              <Input label="" type="number" step="0.01" min="0" value={selectedPrice} onChange={setSelectedPrice} placeholder={t('sellingPrice')} />
               <div className="flex items-end">
                 <Button onClick={addToCart} className="w-full">{t('addItem')}</Button>
               </div>
