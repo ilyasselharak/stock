@@ -64,16 +64,36 @@ export const POST = apiHandler(async function POST(request: NextRequest) {
 
   const { customerId, items, initialPayment, monthlyAmount } = parsed.data
 
+  const saleItems: {
+    productId: string
+    productName: string
+    quantity: number
+    price: number
+    total: number
+  }[] = []
   let totalPrice = 0
   for (const item of items) {
-    totalPrice += item.price * item.quantity
+    const product = await prisma.product.findUnique({ where: { id: item.productId } })
+    if (!product) throw new ApiError(404, 'Product not found')
+    if (item.quantity > product.quantity) {
+      throw new ApiError(400, `Insufficient stock for ${product.name}`)
+    }
+    const itemTotal = item.price * item.quantity
+    totalPrice += itemTotal
+    saleItems.push({
+      productId: item.productId,
+      productName: item.productName,
+      quantity: item.quantity,
+      price: item.price,
+      total: itemTotal,
+    })
   }
   if (initialPayment > totalPrice) {
     throw new ApiError(400, 'Initial payment cannot exceed total price')
   }
 
   const status = computeStatus(totalPrice, initialPayment)
-  const productName = items.map((i) => i.productName).join(', ')
+  const productName = saleItems.map((i) => i.productName).join(', ')
 
   const creditSale = await prisma.$transaction(async (tx) => {
     const created = await tx.creditSale.create({
@@ -87,12 +107,12 @@ export const POST = apiHandler(async function POST(request: NextRequest) {
         status,
         userId: session.id,
         items: {
-          create: items.map((i) => ({
+          create: saleItems.map((i) => ({
             productId: i.productId,
             productName: i.productName,
             quantity: i.quantity,
             price: i.price,
-            total: i.price * i.quantity,
+            total: i.total,
           })),
         },
         payments:
@@ -108,6 +128,22 @@ export const POST = apiHandler(async function POST(request: NextRequest) {
       },
       include: { payments: true, items: true },
     })
+
+    for (const item of saleItems) {
+      await tx.product.update({
+        where: { id: item.productId },
+        data: { quantity: { decrement: item.quantity } },
+      })
+      await tx.stockMovement.create({
+        data: {
+          productId: item.productId,
+          quantity: item.quantity,
+          type: 'OUT',
+          reason: 'Credit sale',
+          userId: session.id,
+        },
+      })
+    }
     return created
   })
 
