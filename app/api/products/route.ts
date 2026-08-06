@@ -75,6 +75,19 @@ export const DELETE = apiHandler(async function DELETE(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const id = searchParams.get('id')
   if (!id) throw new ApiError(400, 'Product id required')
-  await prisma.product.delete({ where: { id } })
+
+  await prisma.$transaction(async (tx) => {
+    const saleItems = await tx.saleItem.findMany({ where: { productId: id }, select: { saleId: true } })
+    const saleIds = [...new Set(saleItems.map((i) => i.saleId))]
+    await tx.saleItem.deleteMany({ where: { productId: id } })
+    await tx.stockMovement.deleteMany({ where: { productId: id } })
+    const orphaned = await tx.sale.findMany({
+      where: { id: { in: saleIds }, items: { none: {} } },
+      select: { id: true },
+    })
+    await tx.sale.deleteMany({ where: { id: { in: orphaned.map((s) => s.id) } } })
+    await tx.product.delete({ where: { id } })
+  })
+
   return NextResponse.json({ ok: true })
 })
