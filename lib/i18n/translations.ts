@@ -85,6 +85,7 @@ export const fr = {
   addCustomer: 'Ajouter un client',
   editCustomer: 'Modifier le client',
   creditBalance: 'Solde crédit',
+  lastPaymentDate: 'Dernier paiement',
   totalPrice: 'Prix total',
   initialPayment: 'Acompte initial',
   remaining: 'Reste à payer',
@@ -198,6 +199,7 @@ export const fr = {
   previousPage: 'Page précédente',
   nextPage: 'Page suivante',
   page: 'Page',
+  exportPdf: 'Exporter PDF',
 }
 
 export const ar = {
@@ -287,6 +289,7 @@ export const ar = {
   addCustomer: 'إضافة عميل',
   editCustomer: 'تعديل العميل',
   creditBalance: 'رصيد الائتمان',
+  lastPaymentDate: 'آخر دفعة',
   totalPrice: 'السعر الإجمالي',
   initialPayment: 'الدفعة الأولى',
   remaining: 'المتبقي',
@@ -400,4 +403,5 @@ export const ar = {
   previousPage: 'الصفحة السابقة',
   nextPage: 'الصفحة التالية',
   page: 'الصفحة',
+  exportPdf: 'تصدير PDF',
 }

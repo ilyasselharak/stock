@@ -30,7 +30,7 @@ export const GET = apiHandler(async function GET(request: NextRequest) {
       orderBy: { createdAt: 'desc' },
       skip,
       take: limit,
-      include: { creditSales: true },
+      include: { creditSales: { include: { payments: { select: { date: true } } } } },
     }),
     prisma.customer.count({ where }),
   ])
@@ -38,7 +38,25 @@ export const GET = apiHandler(async function GET(request: NextRequest) {
   const data = customers.map((c) => {
     const totalDue = c.creditSales.reduce((s, cs) => s + cs.totalPrice, 0)
     const totalPaid = c.creditSales.reduce((s, cs) => s + cs.amountPaid, 0)
-    return { ...c, balance: totalDue - totalPaid }
+    const lastPayment = c.creditSales
+      .flatMap((cs) => cs.payments)
+      .reduce<Date | null>((latest, p) => (latest && p.date <= latest ? latest : p.date), null)
+    return {
+      id: c.id,
+      fullName: c.fullName,
+      phone: c.phone,
+      address: c.address,
+      notes: c.notes,
+      createdAt: c.createdAt,
+      balance: totalDue - totalPaid,
+      lastPaymentDate: lastPayment ? lastPayment.toISOString() : null,
+      creditSales: c.creditSales.map((cs) => ({
+        id: cs.id,
+        totalPrice: cs.totalPrice,
+        amountPaid: cs.amountPaid,
+        status: cs.status,
+      })),
+    }
   })
 
   return NextResponse.json({ customers: data, total, page, totalPages: Math.ceil(total / limit) })

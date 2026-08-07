@@ -57,6 +57,17 @@ export default function ReportsManager() {
             {t(p === 'all' ? 'all' : p)}
           </button>
         ))}
+        <button
+          onClick={() => {
+            window.open(`/api/reports/export?period=${period}`, '_blank')
+          }}
+          className="ml-auto inline-flex items-center gap-2 rounded-full bg-white px-4 py-1.5 text-sm font-medium text-slate-700 border border-slate-200 hover:bg-slate-50 transition"
+        >
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+          </svg>
+          {t('exportPdf')}
+        </button>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">

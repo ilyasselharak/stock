@@ -15,12 +15,13 @@ type Customer = {
   notes: string | null
   createdAt: string
   balance: number
+  lastPaymentDate: string | null
   creditSales: { id: string; totalPrice: number; amountPaid: number; status: string }[]
 }
 
 
 export default function CustomersManager() {
-  const { t, formatMoney } = useI18n()
+  const { t, formatMoney, formatDate } = useI18n()
   const { toast } = useToast()
   const [customers, setCustomers] = useState<Customer[]>([])
   const [loading, setLoading] = useState(true)
@@ -164,6 +165,12 @@ export default function CustomersManager() {
                   <span className="text-xs text-slate-500">{t('creditBalance')}</span>
                   <span className={`text-sm font-bold ${c.balance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
                     {formatMoney(c.balance)}
+                  </span>
+                </div>
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="text-xs text-slate-500">{t('lastPaymentDate')}</span>
+                  <span className={`text-sm font-medium ${c.lastPaymentDate ? 'text-slate-700' : 'text-slate-400'}`} dir="ltr">
+                    {c.lastPaymentDate ? formatDate(c.lastPaymentDate) : '—'}
                   </span>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-1.5">
