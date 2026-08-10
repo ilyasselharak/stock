@@ -1,6 +1,7 @@
 'use client'
 
 import { useI18n } from '@/lib/i18n'
+import { useMemo, useState } from 'react'
 export function Modal({
   open,
   onClose,
@@ -264,6 +265,92 @@ export function Select({
       >
         {children}
       </select>
+    </div>
+  )
+}
+
+export type PickerProduct = {
+  id: string
+  name: string
+  sku: string
+  brand?: string | null
+  quantity?: number
+}
+
+export function ProductPicker({
+  products,
+  value,
+  onSelect,
+  label,
+}: {
+  products: PickerProduct[]
+  value: string
+  onSelect: (id: string) => void
+  label: string
+}) {
+  const { t } = useI18n()
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const selected = products.find((p) => p.id === value)
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    const list = q
+      ? products.filter(
+          (p) =>
+            p.name.toLowerCase().includes(q) ||
+            p.sku.toLowerCase().includes(q) ||
+            (p.brand || '').toLowerCase().includes(q)
+        )
+      : products
+    return list.slice(0, 30)
+  }, [products, query])
+
+  return (
+    <div className="relative">
+      <label className="mb-1.5 block text-sm font-medium text-slate-700">{label}</label>
+      <input
+        value={selected && !query ? `${selected.name} (${selected.sku})` : query}
+        onChange={(e) => {
+          setQuery(e.target.value)
+          if (value) onSelect('')
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        placeholder={t('searchByNameSku')}
+        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+      />
+      {open && (
+        <div className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+          {filtered.length === 0 ? (
+            <p className="px-3 py-2 text-sm text-slate-400">{t('noProducts')}</p>
+          ) : (
+            filtered.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  onSelect(p.id)
+                  setQuery('')
+                  setOpen(false)
+                }}
+                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm transition hover:bg-slate-50"
+              >
+                <span className="min-w-0 truncate text-slate-800">
+                  {p.name}
+                  <span className="text-slate-400"> ({p.sku})</span>
+                </span>
+                {typeof p.quantity === 'number' && (
+                  <span className="shrink-0 text-xs text-slate-500">
+                    {t('currentStock')}: {p.quantity}
+                  </span>
+                )}
+              </button>
+            ))
+          )}
+        </div>
+      )}
     </div>
   )
 }

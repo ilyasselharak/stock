@@ -138,6 +138,7 @@ export default function ProductsManager({ isAdmin }: { isAdmin: boolean }) {
             sku: form.sku,
             brand: form.brand || null,
             basePrice: parseFloat(form.basePrice),
+            quantity: parseInt(form.quantity) || 0,
             image: form.imageBase64 || null,
           }
       const res = await fetch(editing ? `/api/products/${editing.id}` : '/api/products', {
@@ -276,7 +277,7 @@ export default function ProductsManager({ isAdmin }: { isAdmin: boolean }) {
             <Input label={t('brand')} value={form.brand} onChange={(v) => setForm((f) => ({ ...f, brand: v }))} placeholder={t('brand')} />
             <Input label={t('sku')} value={form.sku} onChange={(v) => setForm((f) => ({ ...f, sku: v }))} required placeholder="SKU-001" />
           </div>
-          {editing && isAdmin && (
+          {isAdmin && (
             <Input label={t('stockQuantity')} type="number" min="0" value={form.quantity} onChange={(v) => setForm((f) => ({ ...f, quantity: v }))} />
           )}
           <Input label={t('basePrice')} type="number" step="0.01" min="0" value={form.basePrice} onChange={(v) => setForm((f) => ({ ...f, basePrice: v }))} required hint={`${t('profit')} = (${t('sellingPrice')} - ${t('basePrice')}) × ${t('quantity')}`} />

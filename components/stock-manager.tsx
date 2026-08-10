@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useI18n } from '@/lib/i18n'
 import { useToast } from '@/components/toast'
-import { Button, EmptyState, Input, LoadingScreen, Modal, Pagination, Select } from '@/components/ui'
+import { Button, EmptyState, Input, LoadingScreen, Modal, Pagination, ProductPicker, Select } from '@/components/ui'
 import { PageHeader } from '@/components/page-header'
 import { signOut } from 'next-auth/react'
 
@@ -17,7 +17,7 @@ type Movement = {
   user: { name: string }
 }
 
-type Product = { id: string; name: string; sku: string; quantity: number }
+type Product = { id: string; name: string; sku: string; brand: string | null; quantity: number }
 
 const PER_PAGE = 15
 
@@ -66,7 +66,7 @@ export default function StockManager({ isAdmin }: { isAdmin: boolean }) {
   }, [])
 
   function openModal() {
-    setForm({ productId: products[0]?.id || '', type: 'IN', quantity: '', reason: '' })
+    setForm({ productId: '', type: 'IN', quantity: '', reason: '' })
     setModalOpen(true)
   }
 
@@ -164,17 +164,12 @@ export default function StockManager({ isAdmin }: { isAdmin: boolean }) {
 
       <Modal open={modalOpen} onClose={() => { if (!saving) setModalOpen(false) }} title={t('updateStock')}>
         <form onSubmit={submit} className="space-y-4">
-          <Select
-            label={t('productName')}
+          <ProductPicker
+            products={products}
             value={form.productId}
-            onChange={(v) => setForm((f) => ({ ...f, productId: v }))}
-          >
-            {products.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} ({p.sku}) — {t('currentStock')}: {p.quantity}
-              </option>
-            ))}
-          </Select>
+            onSelect={(v) => setForm((f) => ({ ...f, productId: v }))}
+            label={t('productName')}
+          />
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Select label={t('type')} value={form.type} onChange={(v) => setForm((f) => ({ ...f, type: v as 'IN' | 'OUT' | 'ADJUSTMENT' }))}>
