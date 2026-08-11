@@ -200,6 +200,9 @@ export const fr = {
   nextPage: 'Page suivante',
   page: 'Page',
   exportPdf: 'Exporter PDF',
+  close: 'Fermer',
+  saleUpdated: 'Vente mise à jour avec succès',
+  saleNotFound: 'Vente introuvable',
 }
 
 export const ar = {
@@ -404,4 +407,7 @@ export const ar = {
   nextPage: 'الصفحة التالية',
   page: 'الصفحة',
   exportPdf: 'تصدير PDF',
+  close: 'إغلاق',
+  saleUpdated: 'تم تحديث البيع بنجاح',
+  saleNotFound: 'البيع غير موجود',
 }

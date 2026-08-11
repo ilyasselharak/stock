@@ -120,6 +120,9 @@ export default function SalesManager() {
   const [selectedQty, setSelectedQty] = useState('1')
   const [selectedPrice, setSelectedPrice] = useState('')
   const [detailSale, setDetailSale] = useState<Sale | null>(null)
+  const [editSaleOpen, setEditSaleOpen] = useState(false)
+  const [editingSaleId, setEditingSaleId] = useState('')
+  const [editingCart, setEditingCart] = useState<SaleItem[]>([])
 
   const fetchSales = useCallback(async (p: number, per: string) => {
     setLoading(true)
@@ -233,6 +236,131 @@ export default function SalesManager() {
       setSaving(false)
     }
   }
+
+  async function openEditSale(sale: Sale) {
+    try {
+      const res = await fetch(`/api/sales/${sale.id}`)
+      if (!res.ok) {
+        toast(t('saleNotFound'), 'error')
+        return
+      }
+      const data = await res.json()
+      const cart: SaleItem[] = data.items.map((item: { productId: string; quantity: number; price: number; total: number; profit: number; product: { id: string; name: string; sku: string; brand: string | null; basePrice: number; quantity: number; imageUrl: string | null } }) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+        price: item.price,
+        total: item.total,
+        profit: item.profit,
+        product: {
+          id: item.product.id,
+          name: item.product.name,
+          sku: item.product.sku,
+          brand: item.product.brand,
+          basePrice: item.product.basePrice,
+          quantity: item.product.quantity,
+          imageUrl: item.product.imageUrl,
+        },
+      }))
+      setEditingSaleId(sale.id)
+      setEditingCart(cart)
+      setEditSaleOpen(true)
+    } catch {
+      toast(t('saleNotFound'), 'error')
+    }
+  }
+
+  async function putSale() {
+    if (editingCart.length === 0) {
+      toast(t('noItems'), 'error')
+      return
+    }
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/sales/${editingSaleId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: editingCart.map((i) => ({ productId: i.productId, quantity: i.quantity, price: i.price })),
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast(data.error || 'Error', 'error')
+        return
+      }
+      toast(t('saleUpdated'))
+      setEditSaleOpen(false)
+      setEditingSaleId('')
+      setEditingCart([])
+      fetchSales(page, period)
+      fetchProducts()
+    } catch {
+      toast('Error', 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function updateEditingItem(itemId: string, field: 'quantity' | 'price', value: string) {
+    setEditingCart((prev) =>
+      prev.map((i) => {
+        if (i.productId !== itemId) return i
+        const quantity = field === 'quantity' ? parseInt(value) || 1 : i.quantity
+        const price = field === 'price' ? parseFloat(value) || 0 : i.price
+        const base = i.product?.basePrice ?? 0
+        return {
+          ...i,
+          quantity,
+          price,
+          total: quantity * price,
+          profit: (price - base) * quantity,
+        }
+      })
+    )
+  }
+
+  function removeEditingItem(productId: string) {
+    setEditingCart((prev) => prev.filter((i) => i.productId !== productId))
+  }
+
+  function addEditingItem() {
+    if (!selectedProduct) {
+      toast(t('productRequired'), 'error')
+      return
+    }
+    const p = products.find((x) => x.id === selectedProduct)
+    if (!p) return
+    const qty = parseInt(selectedQty) || 1
+    const price = parseFloat(selectedPrice) || p.basePrice
+    setEditingCart((prev) => {
+      const existing = prev.find((i) => i.productId === p.id)
+      if (existing) {
+        return prev.map((i) =>
+          i.productId === p.id
+            ? { ...i, quantity: i.quantity + qty, price, total: price * (i.quantity + qty), profit: (price - p.basePrice) * (i.quantity + qty) }
+            : i
+        )
+      }
+      return [
+        ...prev,
+        {
+          productId: p.id,
+          quantity: qty,
+          price,
+          product: p,
+          total: price * qty,
+          profit: (price - p.basePrice) * qty,
+        },
+      ]
+    })
+  }
+
+  const editingTotals = useMemo(() => {
+    return editingCart.reduce(
+      (acc, i) => ({ total: acc.total + i.total, profit: acc.profit + i.profit }),
+      { total: 0, profit: 0 }
+    )
+  }, [editingCart])
 
   return (
     <div>
@@ -410,8 +538,90 @@ export default function SalesManager() {
                 <span className="font-medium text-slate-800">{detailSale.user.name}</span>
               </div>
             </div>
+            <div className="flex justify-end gap-3">
+              <Button variant="secondary" onClick={() => setDetailSale(null)}>{t('close')}</Button>
+              <Button onClick={() => { openEditSale(detailSale); setDetailSale(null) }}>{t('edit')}</Button>
+            </div>
           </div>
         )}
+      </Modal>
+
+      {/* Edit sale modal */}
+      <Modal open={editSaleOpen} onClose={() => { if (!saving) setEditSaleOpen(false) }} title={t('editSale')} wide>
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_90px_110px_auto]">
+            <ProductSearch products={products} value={selectedProduct} onSelect={handleSelectProduct} label={t('selectProduct')} />
+            <Input label={t('quantity')} type="number" min="1" value={selectedQty} onChange={setSelectedQty} />
+            <Input label={t('sellingPrice')} type="number" step="0.01" min="0" value={selectedPrice} onChange={setSelectedPrice} />
+            <div className="flex items-end">
+              <Button onClick={addEditingItem} className="w-full">{t('addItem')}</Button>
+            </div>
+          </div>
+
+          {editingCart.length > 0 && (
+            <div className="overflow-hidden rounded-xl border border-slate-200">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
+                    <th className="px-3 py-2 text-left">{t('productName')}</th>
+                    <th className="px-3 py-2 text-left">{t('quantity')}</th>
+                    <th className="px-3 py-2 text-left">{t('price')}</th>
+                    <th className="px-3 py-2 text-left">{t('total')}</th>
+                    <th className="px-3 py-2" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {editingCart.map((i) => (
+                    <tr key={i.productId}>
+                      <td className="px-3 py-2 font-medium text-slate-800">{i.product?.name}</td>
+                      <td className="px-3 py-2">
+                        <Input
+                          type="number"
+                          min="1"
+                          value={String(i.quantity)}
+                          onChange={(v) => updateEditingItem(i.productId, 'quantity', v)}
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={String(i.price)}
+                          onChange={(v) => updateEditingItem(i.productId, 'price', v)}
+                        />
+                      </td>
+                      <td className="px-3 py-2 font-medium text-slate-800">{formatMoney(i.total)}</td>
+                      <td className="px-3 py-2 text-right">
+                        <button onClick={() => removeEditingItem(i.productId)} className="rounded p-1 text-slate-400 hover:text-rose-600 transition">
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div className="flex flex-col gap-2 rounded-xl bg-slate-50 p-4 text-sm">
+            <div className="flex justify-between">
+              <span className="text-slate-600">{t('total')}</span>
+              <span className="font-semibold text-slate-900">{formatMoney(editingTotals.total)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-600">{t('profit')}</span>
+              <span className="font-semibold text-emerald-600">{formatMoney(editingTotals.profit)}</span>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3">
+            <Button variant="secondary" onClick={() => setEditSaleOpen(false)} disabled={saving}>{t('cancel')}</Button>
+            <Button onClick={putSale} loading={saving}>{t('save')}</Button>
+          </div>
+        </div>
       </Modal>
     </div>
   )
