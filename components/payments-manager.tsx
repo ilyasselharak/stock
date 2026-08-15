@@ -143,6 +143,10 @@ export default function PaymentsManager() {
   const [payAmount, setPayAmount] = useState('')
   const [paySaving, setPaySaving] = useState(false)
   const [detail, setDetail] = useState<CreditSale | null>(null)
+  const [editPaymentOpen, setEditPaymentOpen] = useState(false)
+  const [editingPayment, setEditingPayment] = useState<Payment | null>(null)
+  const [editAmount, setEditAmount] = useState('')
+  const [editSaving, setEditSaving] = useState(false)
 
   const fetchData = useCallback(async (p: number) => {
     setLoading(true)
@@ -291,6 +295,42 @@ export default function PaymentsManager() {
       fetchData(page)
     } finally {
       setPaySaving(false)
+    }
+  }
+
+  function openEditPayment(p: Payment) {
+    setEditingPayment(p)
+    setEditAmount(String(p.amount))
+    setEditPaymentOpen(true)
+  }
+
+  async function submitEditPayment(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editingPayment) return
+    const newAmount = parseFloat(editAmount)
+    if (!newAmount || newAmount <= 0) {
+      toast(t('invalidAmount'), 'error')
+      return
+    }
+    setEditSaving(true)
+    try {
+      const res = await fetch(`/api/payments/${editingPayment.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: newAmount }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast(data.error || 'Error', 'error')
+        return
+      }
+      toast(t('paymentUpdated'))
+      setEditPaymentOpen(false)
+      setEditingPayment(null)
+      setDetail(null)
+      fetchData(page)
+    } finally {
+      setEditSaving(false)
     }
   }
 
@@ -478,7 +518,42 @@ export default function PaymentsManager() {
         )}
       </Modal>
 
-      <DetailModal creditSale={detail} onClose={() => setDetail(null)} t={t} formatMoney={formatMoney} formatDateTime={formatDateTime} />
+      <DetailModal creditSale={detail} onClose={() => setDetail(null)} t={t} formatMoney={formatMoney} formatDateTime={formatDateTime} onEditPayment={openEditPayment} />
+
+      {/* Edit payment modal */}
+      <Modal open={editPaymentOpen} onClose={() => { if (!editSaving) setEditPaymentOpen(false) }} title={t('editPayment')}>
+        {editingPayment && (
+          <form onSubmit={submitEditPayment} className="space-y-4">
+            <div className="rounded-xl bg-slate-50 p-4 text-sm space-y-1.5">
+              <div className="flex justify-between">
+                <span className="text-slate-500">{t('customer')}</span>
+                <span className="font-medium text-slate-800">{detail?.customer.fullName ?? ''}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">{t('date')}</span>
+                <span className="font-medium text-slate-800">{formatDateTime(editingPayment.date)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">{t('previousAmount')}</span>
+                <span className="font-medium text-slate-800">{formatMoney(editingPayment.amount)}</span>
+              </div>
+            </div>
+            <Input
+              label={t('paymentAmount')}
+              type="number"
+              step="0.01"
+              min="0.01"
+              value={editAmount}
+              onChange={setEditAmount}
+              required
+            />
+            <div className="flex justify-end gap-3 pt-2">
+              <Button variant="secondary" onClick={() => setEditPaymentOpen(false)} disabled={editSaving}>{t('cancel')}</Button>
+              <Button type="submit" loading={editSaving}>{t('save')}</Button>
+            </div>
+          </form>
+        )}
+      </Modal>
     </div>
   )
 }
@@ -489,12 +564,14 @@ function DetailModal({
   t,
   formatMoney,
   formatDateTime,
+  onEditPayment,
 }: {
   creditSale: CreditSale | null
   onClose: () => void
   t: (k: string) => string
   formatMoney: (n: number) => string
   formatDateTime: (d: string) => string
+  onEditPayment: (p: Payment) => void
 }) {
   if (!creditSale) return null
   const remaining = creditSale.totalPrice - creditSale.amountPaid
@@ -551,6 +628,7 @@ function DetailModal({
                     <th className="px-3 py-2 text-left">{t('amount')}</th>
                     <th className="px-3 py-2 text-left">{t('remainingBalance')}</th>
                     <th className="px-3 py-2 text-left">{t('user')}</th>
+                    <th className="px-3 py-2 text-right">{t('actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -560,6 +638,17 @@ function DetailModal({
                       <td className="px-3 py-2 font-medium text-emerald-600">{formatMoney(p.amount)}</td>
                       <td className="px-3 py-2 text-slate-600">{formatMoney(p.remaining)}</td>
                       <td className="px-3 py-2 text-slate-500">{p.user.name}</td>
+                      <td className="px-3 py-2 text-right">
+                        <button
+                          onClick={() => onEditPayment(p)}
+                          className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-600 transition"
+                          title={t('edit')}
+                        >
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                          </svg>
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
