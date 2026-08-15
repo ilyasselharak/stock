@@ -63,7 +63,7 @@ export default function StockManager({ isAdmin }: { isAdmin: boolean }) {
   useEffect(() => {
     fetchMovements(page)
     fetchProducts()
-  }, [])
+  }, [page])
 
   function openModal() {
     setForm({ productId: '', type: 'IN', quantity: '', reason: '' })

@@ -147,7 +147,7 @@ export default function SalesManager() {
 
   useEffect(() => {
     fetchSales(page, period)
-  }, [period])
+  }, [page, period])
 
   useEffect(() => {
     fetchProducts()
@@ -431,7 +431,7 @@ export default function SalesManager() {
               </tbody>
             </table>
           </div>
-          {sales.length > PER_PAGE && <Pagination page={page} totalPages={totalPages} onPage={setPage} />}
+          {totalPages > 1 && <Pagination page={page} totalPages={totalPages} onPage={setPage} />}
         </div>
       )}
 
