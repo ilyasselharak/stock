@@ -30,7 +30,12 @@ export default function ReportsManager() {
     try {
       const res = await fetch(`/api/reports?period=${p}`)
       if (res.status === 401) { signOut(); return }
-      setData(await res.json())
+      const body = await res.json()
+      if (!res.ok || !body?.summary) {
+        console.error('Failed to load reports', res.status, body)
+        return
+      }
+      setData(body)
     } catch (e) {
       console.error(e)
     }

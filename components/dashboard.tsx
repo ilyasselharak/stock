@@ -75,7 +75,12 @@ export default function DashboardPage() {
     try {
       const res = await fetch('/api/dashboard')
       if (res.status === 401) { signOut(); return }
-      setData(await res.json())
+      const body = await res.json()
+      if (!res.ok || !body?.stats || !body?.charts) {
+        console.error('Failed to load dashboard', res.status, body)
+        return
+      }
+      setData(body)
     } catch (e) {
       console.error(e)
     }
