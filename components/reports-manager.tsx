@@ -73,6 +73,17 @@ export default function ReportsManager() {
           </svg>
           {t('exportPdf')}
         </button>
+        <button
+          onClick={() => {
+            window.open('/api/reports/daily', '_blank')
+          }}
+          className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-1.5 text-sm font-medium text-slate-700 border border-slate-200 hover:bg-slate-50 transition"
+        >
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          {t('dailyActivity')}
+        </button>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">

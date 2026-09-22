@@ -43,8 +43,6 @@ type Customer = { id: string; fullName: string }
 type Product = { id: string; name: string; sku: string; brand: string | null; basePrice: number; quantity: number }
 type CartItem = { productId: string; productName: string; quantity: number; price: number }
 
-const PER_PAGE = 10
-
 function ProductSearch({
   products,
   value,
@@ -179,6 +177,9 @@ export default function PaymentsManager() {
 
   useEffect(() => {
     fetchData(page)
+  }, [page])
+
+  useEffect(() => {
     fetchCustomers()
     fetchProducts()
   }, [])
@@ -409,7 +410,7 @@ export default function PaymentsManager() {
               </tbody>
             </table>
           </div>
-          {creditSales.length > PER_PAGE && <Pagination page={page} totalPages={totalPages} onPage={setPage} />}
+          {totalPages > 1 && <Pagination page={page} totalPages={totalPages} onPage={setPage} />}
         </div>
       )}
 

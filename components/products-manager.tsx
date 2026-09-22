@@ -35,6 +35,7 @@ export default function ProductsManager({ isAdmin }: { isAdmin: boolean }) {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [stockFilter, setStockFilter] = useState<'all' | 'in' | 'out'>('all')
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [total, setTotal] = useState(0)
@@ -56,11 +57,12 @@ export default function ProductsManager({ isAdmin }: { isAdmin: boolean }) {
     imageError: '',
   })
 
-  const fetchProducts = useCallback(async (q: string, p: number) => {
+  const fetchProducts = useCallback(async (q: string, p: number, stock: string) => {
     setLoading(true)
     try {
       const params = new URLSearchParams({ page: String(p) })
       if (q) params.set('q', q)
+      if (stock !== 'all') params.set('stock', stock)
       const res = await fetch(`/api/products?${params}`)
       if (res.status === 401) { signOut(); return }
       const data = await res.json()
@@ -75,13 +77,18 @@ export default function ProductsManager({ isAdmin }: { isAdmin: boolean }) {
   useEffect(() => {
     const delay = setTimeout(() => {
       setPage(1)
-      fetchProducts(search, 1)
+      fetchProducts(search, 1, stockFilter)
     }, 300)
     return () => clearTimeout(delay)
   }, [search])
 
   useEffect(() => {
-    fetchProducts(search, page)
+    setPage(1)
+    fetchProducts(search, 1, stockFilter)
+  }, [stockFilter])
+
+  useEffect(() => {
+    fetchProducts(search, page, stockFilter)
   }, [page])
 
   function openCreate() {
@@ -154,7 +161,7 @@ export default function ProductsManager({ isAdmin }: { isAdmin: boolean }) {
       }
       toast(editing ? t('productUpdated') : t('productCreated'))
       setModalOpen(false)
-      fetchProducts(search, page)
+      fetchProducts(search, page, stockFilter)
     } finally {
       setSaving(false)
     }
@@ -167,7 +174,7 @@ export default function ProductsManager({ isAdmin }: { isAdmin: boolean }) {
     if (res.ok) {
       toast(t('productDeleted'))
       setDeleting(null)
-      fetchProducts(search, page)
+      fetchProducts(search, page, stockFilter)
     } else {
       const data = await res.json()
       toast(data.error || 'Error', 'error')
@@ -187,15 +194,28 @@ export default function ProductsManager({ isAdmin }: { isAdmin: boolean }) {
         }
       />
 
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
         <SearchInput value={search} onChange={setSearch} placeholder={t('searchByNameSku')} />
+        <div className="flex flex-wrap gap-2">
+          {(['all', 'in', 'out'] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => setStockFilter(s)}
+              className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
+                stockFilter === s ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              {t(s === 'all' ? 'all' : s === 'in' ? 'inStock' : 'outOfStock')}
+            </button>
+          ))}
+        </div>
       </div>
 
       {loading ? (
         <LoadingScreen />
       ) : products.length === 0 ? (
         <div className="rounded-2xl border border-slate-200 bg-white">
-          <EmptyState message={search ? t('noProducts') : t('emptyState')} />
+          <EmptyState message={search || stockFilter !== 'all' ? t('noProducts') : t('emptyState')} />
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
