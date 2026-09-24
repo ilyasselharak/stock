@@ -235,6 +235,10 @@ export const fr = {
   unitsExpected: 'Unités attendues',
   unitsCounted: 'Unités comptées',
   valueDifference: 'Écart en valeur',
+  applyToStock: 'Appliquer au stock',
+  applyToStockConfirm: 'Le stock de {n} produit(s) sera remplacé par la quantité comptée. Chaque changement sera enregistré comme ajustement dans l’historique du stock.',
+  applyNotCountedNote: '{n} produit(s) non compté(s) garderont leur stock actuel.',
+  applyExportFirst: 'Exportez le PDF avant si vous voulez garder l’analyse : le comptage sera terminé et remis à zéro.',
 }
 
 export const ar = {
@@ -474,4 +478,8 @@ export const ar = {
   unitsExpected: 'الوحدات المتوقعة',
   unitsCounted: 'الوحدات المعدودة',
   valueDifference: 'فرق القيمة',
+  applyToStock: 'تطبيق على المخزون',
+  applyToStockConfirm: 'سيتم استبدال مخزون {n} منتج(ات) بالكمية المعدودة. سيتم تسجيل كل تغيير كتعديل في سجل المخزون.',
+  applyNotCountedNote: '{n} منتج(ات) غير معدودة ستحتفظ بمخزونها الحالي.',
+  applyExportFirst: 'صدّر PDF قبل ذلك إذا أردت الاحتفاظ بالتحليل: سيتم إنهاء العد وإعادته إلى الصفر.',
 }

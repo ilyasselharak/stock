@@ -42,7 +42,7 @@ function signed(n: number) {
   return n > 0 ? `+${n}` : String(n)
 }
 
-export default function InventoryManager() {
+export default function InventoryManager({ isAdmin }: { isAdmin: boolean }) {
   const { t, formatMoney, formatDateTime } = useI18n()
   const { toast } = useToast()
   const [products, setProducts] = useState<InventoryProduct[]>([])
@@ -54,6 +54,8 @@ export default function InventoryManager() {
   const [analysisOpen, setAnalysisOpen] = useState(false)
   const [resetOpen, setResetOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [applyOpen, setApplyOpen] = useState(false)
+  const [applying, setApplying] = useState(false)
 
   const fetchProducts = useCallback(async () => {
     setLoading(true)
@@ -195,6 +197,31 @@ export default function InventoryManager() {
     }
   }
 
+  async function applyToStock() {
+    if (!draft) return
+    setApplying(true)
+    try {
+      const res = await fetch('/api/inventory/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ counts: draft.counts }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        if (res.status === 403) { toast(t('noPermission'), 'error'); return }
+        toast(data.error || 'Error', 'error')
+        return
+      }
+      toast(`${t('stockUpdated')} (${data.updated})`)
+      setApplyOpen(false)
+      // The count is now reflected in stock — start a fresh one.
+      reset()
+    } finally {
+      setApplying(false)
+    }
+  }
+
+  const changesCount = analysis.surplus.length + analysis.shortage.length
   const countedCount = analysis.countedProducts
   const progress = products.length ? Math.round((countedCount / products.length) * 100) : 0
 
@@ -408,8 +435,29 @@ export default function InventoryManager() {
 
           <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-4 sm:flex-row sm:justify-end">
             <Button variant="secondary" onClick={() => setAnalysisOpen(false)}>{t('close')}</Button>
-            <Button onClick={exportPdf} loading={exporting}>{t('exportPdf')}</Button>
+            <Button variant="secondary" onClick={exportPdf} loading={exporting}>{t('exportPdf')}</Button>
+            {isAdmin && (
+              <Button onClick={() => setApplyOpen(true)} disabled={changesCount === 0}>
+                {t('applyToStock')}
+              </Button>
+            )}
           </div>
+        </div>
+      </Modal>
+
+      <Modal open={applyOpen} onClose={() => { if (!applying) setApplyOpen(false) }} title={t('applyToStock')}>
+        <div className="space-y-3 text-sm text-slate-600">
+          <p>{t('applyToStockConfirm').replace('{n}', String(changesCount))}</p>
+          {analysis.notCounted.length > 0 && (
+            <p className="rounded-xl bg-amber-50 px-3 py-2 text-amber-700">
+              {t('applyNotCountedNote').replace('{n}', String(analysis.notCounted.length))}
+            </p>
+          )}
+          <p className="rounded-xl bg-slate-50 px-3 py-2">{t('applyExportFirst')}</p>
+        </div>
+        <div className="mt-5 flex justify-end gap-3">
+          <Button variant="secondary" onClick={() => setApplyOpen(false)} disabled={applying}>{t('cancel')}</Button>
+          <Button onClick={applyToStock} loading={applying}>{t('applyToStock')}</Button>
         </div>
       </Modal>
 
