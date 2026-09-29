@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useI18n } from '@/lib/i18n'
 import { useToast } from '@/components/toast'
-import { Button, EmptyState, Input, LoadingScreen, Modal, Pagination, Select, StatusBadge } from '@/components/ui'
+import { Button, EmptyState, Input, LoadingScreen, Modal, Pagination, StatusBadge } from '@/components/ui'
 import { PageHeader } from '@/components/page-header'
 import { signOut } from 'next-auth/react'
 
@@ -39,7 +39,7 @@ type CreditSale = {
   items: CreditSaleItem[]
 }
 
-type Customer = { id: string; fullName: string }
+type Customer = { id: string; fullName: string; phone: string }
 type Product = { id: string; name: string; sku: string; brand: string | null; basePrice: number; quantity: number }
 type CartItem = { productId: string; productName: string; quantity: number; price: number }
 
@@ -119,6 +119,72 @@ function ProductSearch({
   )
 }
 
+function CustomerSearch({
+  customers,
+  value,
+  onSelect,
+  label,
+}: {
+  customers: Customer[]
+  value: string
+  onSelect: (id: string) => void
+  label: string
+}) {
+  const { t } = useI18n()
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const selected = customers.find((c) => c.id === value)
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    const list = q
+      ? customers.filter((c) => c.fullName.toLowerCase().includes(q) || c.phone.toLowerCase().includes(q))
+      : customers
+    return list.slice(0, 50)
+  }, [customers, query])
+
+  return (
+    <div className="relative">
+      <label className="mb-1.5 block text-sm font-medium text-slate-700">{label}</label>
+      <input
+        value={selected && !query ? `${selected.fullName} (${selected.phone})` : query}
+        onChange={(e) => {
+          setQuery(e.target.value)
+          if (value) onSelect('')
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        placeholder={t('searchCustomers')}
+        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+      />
+      {open && (
+        <div className="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+          {filtered.length === 0 ? (
+            <p className="px-3 py-2 text-sm text-slate-400">{t('noCustomers')}</p>
+          ) : (
+            filtered.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  onSelect(c.id)
+                  setQuery('')
+                  setOpen(false)
+                }}
+                className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm transition hover:bg-slate-50 ${c.id === value ? 'bg-indigo-50' : ''}`}
+              >
+                <span className="min-w-0 truncate text-slate-800">{c.fullName}</span>
+                <span className="shrink-0 text-xs text-slate-500" dir="ltr">{c.phone}</span>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function PaymentsManager() {
   const { t, formatMoney, formatDateTime } = useI18n()
   const { toast } = useToast()
@@ -160,7 +226,7 @@ export default function PaymentsManager() {
   }, [])
 
   const fetchCustomers = useCallback(async () => {
-    const res = await fetch('/api/customers?page=1&limit=500')
+    const res = await fetch('/api/customers?page=1&limit=5000')
     if (res.ok) {
       const data = await res.json()
       setCustomers(data.customers || [])
@@ -185,7 +251,7 @@ export default function PaymentsManager() {
   }, [])
 
   function openCreate() {
-    setForm({ customerId: customers[0]?.id || '', initialPayment: '0', monthlyAmount: '' })
+    setForm({ customerId: '', initialPayment: '0', monthlyAmount: '' })
     setCart([])
     setSelectedProduct('')
     setSelectedQty('1')
@@ -233,6 +299,10 @@ export default function PaymentsManager() {
 
   async function createCreditSale(e: React.FormEvent) {
     e.preventDefault()
+    if (!form.customerId) {
+      toast(t('selectCustomer'), 'error')
+      return
+    }
     if (cart.length === 0) {
       toast(t('noItems'), 'error')
       return
@@ -417,11 +487,12 @@ export default function PaymentsManager() {
       {/* Create credit sale */}
       <Modal open={createOpen} onClose={() => { if (!saving) setCreateOpen(false) }} title={t('addCreditSale')} wide>
         <form onSubmit={createCreditSale} className="space-y-4">
-          <Select label={t('selectCustomer')} value={form.customerId} onChange={(v) => setForm((f) => ({ ...f, customerId: v }))}>
-            {customers.map((c) => (
-              <option key={c.id} value={c.id}>{c.fullName}</option>
-            ))}
-          </Select>
+          <CustomerSearch
+            customers={customers}
+            value={form.customerId}
+            onSelect={(id) => setForm((f) => ({ ...f, customerId: id }))}
+            label={t('selectCustomer')}
+          />
 
           {/* Product picker */}
           <div>

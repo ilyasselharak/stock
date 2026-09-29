@@ -17,7 +17,7 @@ export const GET = apiHandler(async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const q = searchParams.get('q') || ''
   const page = parseInt(searchParams.get('page') || '1')
-  const limit = 10
+  const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '10') || 10, 1), 5000)
   const skip = (page - 1) * limit
 
   const where = q
