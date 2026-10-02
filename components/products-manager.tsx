@@ -45,6 +45,7 @@ export default function ProductsManager({ isAdmin }: { isAdmin: boolean }) {
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState<Product | null>(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
+  const [syncing, setSyncing] = useState(false)
 
   const [form, setForm] = useState({
     name: '',
@@ -182,6 +183,22 @@ export default function ProductsManager({ isAdmin }: { isAdmin: boolean }) {
     setDeleteLoading(false)
   }
 
+  async function syncStock() {
+    setSyncing(true)
+    try {
+      const res = await fetch('/api/stock/sync', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) {
+        toast(data.error || 'Error', 'error')
+        return
+      }
+      toast(`${t('stockSynced')}: ${data.updated}/${data.checked}`)
+      fetchProducts(search, page, stockFilter)
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   return (
     <div>
       <PageHeader
@@ -189,7 +206,12 @@ export default function ProductsManager({ isAdmin }: { isAdmin: boolean }) {
         subtitle={`${total} ${t('products')}`}
         action={
           isAdmin ? (
-            <Button onClick={openCreate} className="w-full sm:w-auto">+ {t('addProduct')}</Button>
+            <div className="flex w-full gap-2 sm:w-auto">
+              <Button variant="secondary" onClick={syncStock} loading={syncing} className="flex-1 sm:flex-none">
+                {t('syncStock')}
+              </Button>
+              <Button onClick={openCreate} className="flex-1 sm:flex-none">+ {t('addProduct')}</Button>
+            </div>
           ) : undefined
         }
       />

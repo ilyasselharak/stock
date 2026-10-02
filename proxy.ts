@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 
-const publicPaths = ['/login', '/api/auth']
+// /api/stock/sync checks its own auth (admin session or CRON_SECRET) so the scheduler can reach it
+const publicPaths = ['/login', '/api/auth', '/api/stock/sync']
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
