@@ -66,7 +66,8 @@ export default function ProductsManager({ isAdmin }: { isAdmin: boolean }) {
       if (stock !== 'all') params.set('stock', stock)
       const res = await fetch(`/api/products?${params}`)
       if (res.status === 401) { signOut(); return }
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { toast(data.error || 'Error', 'error'); return }
       setProducts(data.products)
       setTotalPages(data.totalPages)
       setTotal(data.total)

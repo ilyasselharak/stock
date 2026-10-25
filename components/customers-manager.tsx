@@ -43,7 +43,8 @@ export default function CustomersManager({ isAdmin }: { isAdmin: boolean }) {
       if (q) params.set('q', q)
       const res = await fetch(`/api/customers?${params}`)
       if (res.status === 401) { signOut(); return }
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { toast(data.error || 'Error', 'error'); return }
       setCustomers(data.customers)
       setTotalPages(data.totalPages)
     } finally {

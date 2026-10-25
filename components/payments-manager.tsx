@@ -217,7 +217,8 @@ export default function PaymentsManager({ isAdmin }: { isAdmin: boolean }) {
     try {
       const res = await fetch(`/api/creditsales?page=${p}`)
       if (res.status === 401) { signOut(); return }
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { toast(data.error || 'Error', 'error'); return }
       setCreditSales(data.creditSales)
       setTotalPages(data.totalPages)
     } finally {

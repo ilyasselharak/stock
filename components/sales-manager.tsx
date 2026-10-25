@@ -129,7 +129,8 @@ export default function SalesManager({ isAdmin }: { isAdmin: boolean }) {
     try {
       const res = await fetch(`/api/sales?page=${p}&period=${per}`)
       if (res.status === 401) { signOut(); return }
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { toast(data.error || 'Error', 'error'); return }
       setSales(data.sales)
       setTotalPages(data.totalPages)
     } finally {

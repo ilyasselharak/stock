@@ -34,6 +34,7 @@ export default function UsersManager({ currentUserId }: { currentUserId: string 
       const res = await fetch('/api/users')
       if (res.status === 401) { signOut(); return }
       if (res.status === 403) { toast(t('noPermission'), 'error'); return }
+      if (!res.ok) { toast('Error', 'error'); return }
       setUsers(await res.json())
     } finally {
       setLoading(false)
