@@ -185,7 +185,7 @@ function CustomerSearch({
   )
 }
 
-export default function PaymentsManager() {
+export default function PaymentsManager({ isAdmin }: { isAdmin: boolean }) {
   const { t, formatMoney, formatDateTime } = useI18n()
   const { toast } = useToast()
   const [creditSales, setCreditSales] = useState<CreditSale[]>([])
@@ -410,7 +410,7 @@ export default function PaymentsManager() {
     <div>
       <PageHeader
         title={t('creditSales')}
-        action={<Button onClick={openCreate} className="w-full sm:w-auto">+ {t('addCreditSale')}</Button>}
+        action={isAdmin ? <Button onClick={openCreate} className="w-full sm:w-auto">+ {t('addCreditSale')}</Button> : undefined}
       />
 
       {loading ? (
@@ -465,13 +465,15 @@ export default function PaymentsManager() {
                               <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                             </svg>
                           </button>
-                          <button
-                            onClick={() => openPay(cs)}
-                            disabled={remaining <= 0}
-                            className="rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 disabled:opacity-40 transition"
-                          >
-                            {t('recordPayment')}
-                          </button>
+                          {isAdmin && (
+                            <button
+                              onClick={() => openPay(cs)}
+                              disabled={remaining <= 0}
+                              className="rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 disabled:opacity-40 transition"
+                            >
+                              {t('recordPayment')}
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -590,7 +592,7 @@ export default function PaymentsManager() {
         )}
       </Modal>
 
-      <DetailModal creditSale={detail} onClose={() => setDetail(null)} t={t} formatMoney={formatMoney} formatDateTime={formatDateTime} onEditPayment={openEditPayment} />
+      <DetailModal creditSale={detail} onClose={() => setDetail(null)} t={t} formatMoney={formatMoney} formatDateTime={formatDateTime} onEditPayment={isAdmin ? openEditPayment : undefined} />
 
       {/* Edit payment modal */}
       <Modal open={editPaymentOpen} onClose={() => { if (!editSaving) setEditPaymentOpen(false) }} title={t('editPayment')}>
@@ -643,7 +645,7 @@ function DetailModal({
   t: (k: string) => string
   formatMoney: (n: number) => string
   formatDateTime: (d: string) => string
-  onEditPayment: (p: Payment) => void
+  onEditPayment?: (p: Payment) => void
 }) {
   if (!creditSale) return null
   const remaining = creditSale.totalPrice - creditSale.amountPaid
@@ -711,6 +713,7 @@ function DetailModal({
                       <td className="px-3 py-2 text-slate-600">{formatMoney(p.remaining)}</td>
                       <td className="px-3 py-2 text-slate-500">{p.user.name}</td>
                       <td className="px-3 py-2 text-right">
+                        {onEditPayment && (
                         <button
                           onClick={() => onEditPayment(p)}
                           className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-600 transition"
@@ -720,6 +723,7 @@ function DetailModal({
                             <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
                           </svg>
                         </button>
+                        )}
                       </td>
                     </tr>
                   ))}

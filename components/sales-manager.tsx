@@ -103,7 +103,7 @@ function ProductSearch({
   )
 }
 
-export default function SalesManager() {
+export default function SalesManager({ isAdmin }: { isAdmin: boolean }) {
   const { t, formatMoney, formatDateTime } = useI18n()
   const { toast } = useToast()
   const [sales, setSales] = useState<Sale[]>([])
@@ -367,9 +367,11 @@ export default function SalesManager() {
       <PageHeader
         title={t('sales')}
         action={
-          <Button onClick={() => { setCart([]); setSelectedProduct(''); setSelectedPrice(''); setSelectedQty('1'); setNewSaleOpen(true) }} className="w-full sm:w-auto">
-            + {t('newSale')}
-          </Button>
+          isAdmin ? (
+            <Button onClick={() => { setCart([]); setSelectedProduct(''); setSelectedPrice(''); setSelectedQty('1'); setNewSaleOpen(true) }} className="w-full sm:w-auto">
+              + {t('newSale')}
+            </Button>
+          ) : undefined
         }
       />
 
@@ -540,7 +542,7 @@ export default function SalesManager() {
             </div>
             <div className="flex justify-end gap-3">
               <Button variant="secondary" onClick={() => setDetailSale(null)}>{t('close')}</Button>
-              <Button onClick={() => { openEditSale(detailSale); setDetailSale(null) }}>{t('edit')}</Button>
+              {isAdmin && <Button onClick={() => { openEditSale(detailSale); setDetailSale(null) }}>{t('edit')}</Button>}
             </div>
           </div>
         )}

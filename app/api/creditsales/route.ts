@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireAuth, ApiError } from '@/lib/permissions'
+import { requireAuth, requireAdmin, ApiError } from '@/lib/permissions'
 import { z } from 'zod'
 import { zodMessage } from '@/lib/zod-helper'
 import { PaymentStatus } from '@prisma/client'
@@ -56,8 +56,7 @@ export const GET = apiHandler(async function GET(request: NextRequest) {
 })
 
 export const POST = apiHandler(async function POST(request: NextRequest) {
-  await requireAuth()
-  const session = await requireAuth()
+  const session = await requireAdmin()
   const body = await request.json()
   const parsed = creditSaleSchema.safeParse(body)
   if (!parsed.success) throw new ApiError(400, zodMessage(parsed.error))

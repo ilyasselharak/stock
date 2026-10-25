@@ -20,7 +20,7 @@ type Customer = {
 }
 
 
-export default function CustomersManager() {
+export default function CustomersManager({ isAdmin }: { isAdmin: boolean }) {
   const { t, formatMoney, formatDate } = useI18n()
   const { toast } = useToast()
   const [customers, setCustomers] = useState<Customer[]>([])
@@ -116,7 +116,7 @@ export default function CustomersManager() {
     <div>
       <PageHeader
         title={t('creditCustomers')}
-        action={<Button onClick={openCreate} className="w-full sm:w-auto">+ {t('addCustomer')}</Button>}
+        action={isAdmin ? <Button onClick={openCreate} className="w-full sm:w-auto">+ {t('addCustomer')}</Button> : undefined}
       />
 
       <div className="mb-4 flex flex-col gap-3 sm:flex-row">
@@ -143,6 +143,7 @@ export default function CustomersManager() {
                     <p className="text-xs text-slate-500" dir="ltr">{c.phone}</p>
                   </div>
                 </div>
+                {isAdmin && (
                 <div className="flex gap-1">
                   <button onClick={() => openEdit(c)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-indigo-600 transition" title={t('edit')}>
                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
@@ -155,6 +156,7 @@ export default function CustomersManager() {
                     </svg>
                   </button>
                 </div>
+                )}
               </div>
 
               {c.address && <p className="mt-3 text-xs text-slate-500">{c.address}</p>}

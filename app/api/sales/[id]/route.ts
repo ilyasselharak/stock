@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireAuth, ApiError } from '@/lib/permissions'
+import { requireAuth, requireAdmin, ApiError } from '@/lib/permissions'
 import { z } from 'zod'
 import { zodMessage } from '@/lib/zod-helper'
 import { apiHandler } from '@/lib/api-handler'
@@ -39,7 +39,7 @@ export const GET = apiHandler(async function GET(request: NextRequest, ctx: Cont
 })
 
 export const PUT = apiHandler(async function PUT(request: NextRequest, ctx: Context) {
-  const session = await requireAuth()
+  const session = await requireAdmin()
   const { id } = await ctx.params
   if (!id) {
     return NextResponse.json({ error: 'Missing sale ID' }, { status: 400 })

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireAuth, ApiError } from '@/lib/permissions'
+import { requireAuth, requireAdmin, ApiError } from '@/lib/permissions'
 import { z } from 'zod'
 import { zodMessage } from '@/lib/zod-helper'
 import { apiHandler } from '@/lib/api-handler'
@@ -63,7 +63,7 @@ export const GET = apiHandler(async function GET(request: NextRequest) {
 })
 
 export const POST = apiHandler(async function POST(request: NextRequest) {
-  await requireAuth()
+  await requireAdmin()
   const body = await request.json()
   const parsed = customerSchema.safeParse(body)
   if (!parsed.success) throw new ApiError(400, zodMessage(parsed.error))
@@ -72,7 +72,7 @@ export const POST = apiHandler(async function POST(request: NextRequest) {
 })
 
 export const PUT = apiHandler(async function PUT(request: NextRequest) {
-  await requireAuth()
+  await requireAdmin()
   const { searchParams } = new URL(request.url)
   const id = searchParams.get('id')
   if (!id) throw new ApiError(400, 'Customer id required')
@@ -84,7 +84,7 @@ export const PUT = apiHandler(async function PUT(request: NextRequest) {
 })
 
 export const DELETE = apiHandler(async function DELETE(request: NextRequest) {
-  await requireAuth()
+  await requireAdmin()
   const { searchParams } = new URL(request.url)
   const id = searchParams.get('id')
   if (!id) throw new ApiError(400, 'Customer id required')

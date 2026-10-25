@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireAuth, ApiError } from '@/lib/permissions'
+import { requireAdmin, ApiError } from '@/lib/permissions'
 import { z } from 'zod'
 import { zodMessage } from '@/lib/zod-helper'
 import { apiHandler } from '@/lib/api-handler'
@@ -12,7 +12,7 @@ const paymentSchema = z.object({
 type Context = { params: Promise<{ id: string }> }
 
 export const PUT = apiHandler(async function PUT(request: NextRequest, ctx: Context) {
-  await requireAuth()
+  await requireAdmin()
   const { id } = await ctx.params
   if (!id) {
     return NextResponse.json({ error: 'Missing payment ID' }, { status: 400 })
