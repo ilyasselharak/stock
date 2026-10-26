@@ -93,7 +93,9 @@ export const PUT = apiHandler(async function PUT(request: NextRequest, ctx: Cont
 
   await prisma.$transaction(async (tx) => {
     for (const oldItem of existingSale.items) {
-      await tx.product.update({
+      if (!oldItem.productId) continue
+      // updateMany skips products that no longer exist instead of throwing
+      await tx.product.updateMany({
         where: { id: oldItem.productId },
         data: { quantity: { increment: oldItem.quantity } },
       })

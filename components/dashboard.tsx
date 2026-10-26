@@ -21,14 +21,14 @@ type DashboardData = {
     id: string
     total: number
     createdAt: string
-    user: { name: string }
-    items: { id: string; product: { name: string }; quantity: number }[]
+    user: { name: string } | null
+    items: { id: string; product: { name: string } | null; quantity: number }[]
   }[]
   recentPayments: {
     id: string
     amount: number
     date: string
-    user: { name: string }
+    user: { name: string } | null
     creditSale: { customer: { fullName: string } }
   }[]
   charts: {
@@ -143,9 +143,9 @@ export default function DashboardPage() {
                 <div key={sale.id} className="flex items-center justify-between px-5 py-3">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-slate-800">
-                      {sale.items.map((i) => i.product.name).join(', ') || t('sale')}
+                      {sale.items.map((i) => i.product?.name ?? '—').join(', ') || t('sale')}
                     </p>
-                    <p className="text-xs text-slate-400">{sale.user.name} · {formatDateTime(sale.createdAt)}</p>
+                    <p className="text-xs text-slate-400">{sale.user?.name ?? '—'} · {formatDateTime(sale.createdAt)}</p>
                   </div>
                   <span className="text-sm font-semibold text-slate-900" dir="ltr">{formatMoney(sale.total)}</span>
                 </div>
@@ -166,7 +166,7 @@ export default function DashboardPage() {
                 <div key={p.id} className="flex items-center justify-between px-5 py-3">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-slate-800">{p.creditSale.customer.fullName}</p>
-                    <p className="text-xs text-slate-400">{p.user.name} · {formatDateTime(p.date)}</p>
+                    <p className="text-xs text-slate-400">{p.user?.name ?? '—'} · {formatDateTime(p.date)}</p>
                   </div>
                   <span className="text-sm font-semibold text-emerald-600" dir="ltr">{formatMoney(p.amount)}</span>
                 </div>

@@ -38,6 +38,7 @@ export async function getReportData(period: string) {
   const productMap = new Map<string, { name: string; sold: number; revenue: number; profit: number }>()
   for (const sale of sales) {
     for (const item of sale.items) {
+      if (!item.product) continue
       const cur = productMap.get(item.product.id) || {
         name: item.product.name,
         sold: 0,

@@ -12,7 +12,7 @@ type Payment = {
   amount: number
   remaining: number
   date: string
-  user: { name: string }
+  user: { name: string } | null
 }
 
 type CreditSaleItem = {
@@ -34,7 +34,7 @@ type CreditSale = {
   status: string
   createdAt: string
   customer: { fullName: string; phone: string }
-  createdByUser: { name: string }
+  createdByUser: { name: string } | null
   payments: Payment[]
   items: CreditSaleItem[]
 }
@@ -712,7 +712,7 @@ function DetailModal({
                       <td className="px-3 py-2 text-slate-500">{formatDateTime(p.date)}</td>
                       <td className="px-3 py-2 font-medium text-emerald-600">{formatMoney(p.amount)}</td>
                       <td className="px-3 py-2 text-slate-600">{formatMoney(p.remaining)}</td>
-                      <td className="px-3 py-2 text-slate-500">{p.user.name}</td>
+                      <td className="px-3 py-2 text-slate-500">{p.user?.name ?? '—'}</td>
                       <td className="px-3 py-2 text-right">
                         {onEditPayment && (
                         <button

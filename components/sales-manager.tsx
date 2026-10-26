@@ -21,8 +21,8 @@ type Sale = {
   total: number
   profit: number
   createdAt: string
-  user: { name: string }
-  items: { id: string; product: { name: string; sku: string; imageUrl: string | null }; quantity: number; price: number; total: number; profit: number }[]
+  user: { name: string } | null
+  items: { id: string; product: { name: string; sku: string; imageUrl: string | null } | null; quantity: number; price: number; total: number; profit: number }[]
 }
 
 const PER_PAGE = 10
@@ -246,7 +246,8 @@ export default function SalesManager({ isAdmin }: { isAdmin: boolean }) {
         return
       }
       const data = await res.json()
-      const cart: SaleItem[] = data.items.map((item: { productId: string; quantity: number; price: number; total: number; profit: number; product: { id: string; name: string; sku: string; brand: string | null; basePrice: number; quantity: number; imageUrl: string | null } }) => ({
+      // lines whose product was deleted can't be edited, so leave them out of the cart
+      const cart: SaleItem[] = data.items.filter((item: { product: unknown }) => item.product).map((item: { productId: string; quantity: number; price: number; total: number; profit: number; product: { id: string; name: string; sku: string; brand: string | null; basePrice: number; quantity: number; imageUrl: string | null } }) => ({
         productId: item.productId,
         quantity: item.quantity,
         price: item.price,
@@ -417,7 +418,7 @@ export default function SalesManager({ isAdmin }: { isAdmin: boolean }) {
                     <td className="px-4 py-3 text-slate-700">{s.items.length}</td>
                     <td className="px-4 py-3 font-semibold text-slate-900">{formatMoney(s.total)}</td>
                     <td className="px-4 py-3 text-emerald-600 font-medium">{formatMoney(s.profit)}</td>
-                    <td className="px-4 py-3 text-slate-500">{s.user.name}</td>
+                    <td className="px-4 py-3 text-slate-500">{s.user?.name ?? '—'}</td>
                     <td className="px-4 py-3 text-right">
                       <button
                         onClick={() => setDetailSale(s)}
@@ -518,7 +519,7 @@ export default function SalesManager({ isAdmin }: { isAdmin: boolean }) {
                 <tbody className="divide-y divide-slate-100">
                   {detailSale.items.map((item) => (
                     <tr key={item.id}>
-                      <td className="px-3 py-2 font-medium text-slate-800">{item.product.name}</td>
+                      <td className="px-3 py-2 font-medium text-slate-800">{item.product?.name ?? '—'}</td>
                       <td className="px-3 py-2 text-slate-600">{item.quantity}</td>
                       <td className="px-3 py-2 text-slate-600">{formatMoney(item.price)}</td>
                       <td className="px-3 py-2 font-medium text-slate-800">{formatMoney(item.total)}</td>
@@ -538,7 +539,7 @@ export default function SalesManager({ isAdmin }: { isAdmin: boolean }) {
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-600">{t('user')}</span>
-                <span className="font-medium text-slate-800">{detailSale.user.name}</span>
+                <span className="font-medium text-slate-800">{detailSale.user?.name ?? '—'}</span>
               </div>
             </div>
             <div className="flex justify-end gap-3">

@@ -70,7 +70,7 @@ export const GET = apiHandler(async function GET() {
         MARGIN + 12,
         contentW - 12,
         [
-          { label: 'PRODUIT', width: contentW - 12 - 60 - 100 - 100, value: (it) => it.product.name },
+          { label: 'PRODUIT', width: contentW - 12 - 60 - 100 - 100, value: (it) => it.product?.name ?? 'Produit supprimé' },
           { label: 'QTÉ', width: 60, align: 'right', value: (it) => String(it.quantity) },
           { label: 'PRIX', width: 100, align: 'right', value: (it) => formatMoney(it.price) },
           { label: 'TOTAL', width: 100, align: 'right', value: (it) => formatMoney(it.total) },

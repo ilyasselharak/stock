@@ -9,12 +9,12 @@ import { signOut } from 'next-auth/react'
 
 type Movement = {
   id: string
-  product: { id: string; name: string; sku: string }
+  product: { id: string; name: string; sku: string } | null
   quantity: number
   type: 'IN' | 'OUT' | 'ADJUSTMENT'
   reason: string | null
   date: string
-  user: { name: string }
+  user: { name: string } | null
 }
 
 type Product = { id: string; name: string; sku: string; brand: string | null; quantity: number }
@@ -135,8 +135,8 @@ export default function StockManager({ isAdmin }: { isAdmin: boolean }) {
               <tbody className="divide-y divide-slate-100">
                 {movements.map((m) => (
                   <tr key={m.id} className="hover:bg-slate-50 transition">
-                    <td className="px-4 py-3 font-medium text-slate-900">{m.product.name}</td>
-                    <td className="px-4 py-3 text-slate-500">{m.product.sku}</td>
+                    <td className="px-4 py-3 font-medium text-slate-900">{m.product?.name ?? '—'}</td>
+                    <td className="px-4 py-3 text-slate-500">{m.product?.sku ?? '—'}</td>
                     <td className="px-4 py-3">
                       <span
                         className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
@@ -152,7 +152,7 @@ export default function StockManager({ isAdmin }: { isAdmin: boolean }) {
                     </td>
                     <td className="px-4 py-3 font-semibold text-slate-700">{m.quantity}</td>
                     <td className="px-4 py-3 text-slate-500">{m.reason || '—'}</td>
-                    <td className="px-4 py-3 text-slate-500">{m.user.name}</td>
+                    <td className="px-4 py-3 text-slate-500">{m.user?.name ?? '—'}</td>
                     <td className="px-4 py-3 text-slate-500">{formatDateTime(m.date)}</td>
                   </tr>
                 ))}

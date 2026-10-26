@@ -17,8 +17,8 @@ type ReportData = {
   }
   topProducts: { id: string; name: string; sold: number; revenue: number; profit: number }[]
   lowStock: { id: string; name: string; sku: string; quantity: number }[]
-  recentSales: { id: string; total: number; profit: number; createdAt: string; user: { name: string } }[]
-  recentPayments: { id: string; amount: number; date: string; user: { name: string }; creditSale: { customer: { fullName: string } } }[]
+  recentSales: { id: string; total: number; profit: number; createdAt: string; user: { name: string } | null }[]
+  recentPayments: { id: string; amount: number; date: string; user: { name: string } | null; creditSale: { customer: { fullName: string } } }[]
 }
 
 export default function ReportsManager() {
@@ -175,7 +175,7 @@ export default function ReportsManager() {
                     <td className="px-4 py-2.5 text-slate-500">{formatDateTime(sale.createdAt)}</td>
                     <td className="px-4 py-2.5 font-medium text-slate-800">{formatMoney(sale.total)}</td>
                     <td className="px-4 py-2.5 text-emerald-600">{formatMoney(sale.profit)}</td>
-                    <td className="px-4 py-2.5 text-slate-500">{sale.user.name}</td>
+                    <td className="px-4 py-2.5 text-slate-500">{sale.user?.name ?? '—'}</td>
                   </tr>
                 ))}
               </tbody>
