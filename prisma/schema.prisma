@@ -138,6 +138,9 @@ model StockMovement {
   quantity  Int
   type      StockMovementType
   reason    String?
+  // Set by /api/public/stock-holds: the external order these units belong to
+  // (e.g. "ed-sale-<id>" for an ElectroDarna seller order).
+  reference String?
   date      DateTime        @default(now())
   userId    String?          @db.ObjectId
   user      User?            @relation(fields: [userId], references: [id])
