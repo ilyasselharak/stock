@@ -275,6 +275,7 @@ export type PickerProduct = {
   sku: string
   brand?: string | null
   quantity?: number
+  warehouseQuantity?: number
 }
 
 export function ProductPicker({
@@ -343,7 +344,9 @@ export function ProductPicker({
                 </span>
                 {typeof p.quantity === 'number' && (
                   <span className="shrink-0 text-xs text-slate-500">
-                    {t('currentStock')}: {p.quantity}
+                    {typeof p.warehouseQuantity === 'number'
+                      ? `${t('stores')}: ${p.quantity} · ${t('warehouse')}: ${p.warehouseQuantity}`
+                      : `${t('currentStock')}: ${p.quantity}`}
                   </span>
                 )}
               </button>

@@ -21,7 +21,7 @@ export const GET = apiHandler(async function GET() {
     customers,
   ] = await Promise.all([
     prisma.product.count(),
-    prisma.product.findMany({ select: { quantity: true, basePrice: true } }),
+    prisma.product.findMany({ select: { quantity: true, warehouseQuantity: true, basePrice: true } }),
     prisma.sale.aggregate({ _sum: { total: true, profit: true }, where: { createdAt: { gte: todayStart } } }),
     prisma.sale.aggregate({ _sum: { total: true, profit: true } }),
     prisma.sale.findMany({
@@ -34,7 +34,7 @@ export const GET = apiHandler(async function GET() {
     prisma.customer.findMany({ include: { creditSales: { select: { totalPrice: true, amountPaid: true } } } }),
   ])
 
-  const stockValue = products.reduce((s, p) => s + p.quantity * p.basePrice, 0)
+  const stockValue = products.reduce((s, p) => s + (p.quantity + p.warehouseQuantity) * p.basePrice, 0)
   const creditOutstanding = creditSales.reduce((s, cs) => s + (cs.totalPrice - cs.amountPaid), 0)
   const unpaidCreditCustomers = customers.filter((c) =>
     c.creditSales.some((cs) => cs.totalPrice - cs.amountPaid > 0)

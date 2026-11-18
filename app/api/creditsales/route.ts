@@ -138,6 +138,7 @@ export const POST = apiHandler(async function POST(request: NextRequest) {
           productId: item.productId,
           quantity: item.quantity,
           type: 'OUT',
+          location: 'STORE',
           reason: 'Credit sale',
           userId: session.id,
         },

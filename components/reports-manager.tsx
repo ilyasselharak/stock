@@ -16,7 +16,7 @@ type ReportData = {
     stockValue: number
   }
   topProducts: { id: string; name: string; sold: number; revenue: number; profit: number }[]
-  lowStock: { id: string; name: string; sku: string; quantity: number }[]
+  lowStock: { id: string; name: string; sku: string; quantity: number; warehouseQuantity: number }[]
   recentSales: { id: string; total: number; profit: number; createdAt: string; user: { name: string } | null }[]
   recentPayments: { id: string; amount: number; date: string; user: { name: string } | null; creditSale: { customer: { fullName: string } } }[]
 }
@@ -130,7 +130,7 @@ export default function ReportsManager() {
 
         <div className="rounded-2xl border border-slate-200 bg-white">
           <div className="border-b border-slate-100 px-5 py-4">
-            <h3 className="text-sm font-semibold text-slate-700">{t('lowStock')}</h3>
+            <h3 className="text-sm font-semibold text-slate-700">{t('lowStock')} · {t('stores')}</h3>
           </div>
           {data.lowStock.length === 0 ? (
             <EmptyState message={t('noData')} />
@@ -140,7 +140,7 @@ export default function ReportsManager() {
                 <div key={p.id} className="flex items-center justify-between px-5 py-3">
                   <div>
                     <p className="text-sm font-medium text-slate-800">{p.name}</p>
-                    <p className="text-xs text-slate-400">{p.sku}</p>
+                    <p className="text-xs text-slate-400">{p.sku} · {t('warehouse')}: {p.warehouseQuantity}</p>
                   </div>
                   <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${p.quantity === 0 ? 'bg-rose-50 text-rose-600' : 'bg-amber-50 text-amber-600'}`}>
                     {p.quantity}

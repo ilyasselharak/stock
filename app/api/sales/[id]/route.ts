@@ -122,6 +122,7 @@ export const PUT = apiHandler(async function PUT(request: NextRequest, ctx: Cont
           productId: item.productId,
           quantity: item.quantity,
           type: 'OUT',
+          location: 'STORE',
           reason: 'Sale edited',
           userId: session.id,
         },

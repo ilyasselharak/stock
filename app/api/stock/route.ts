@@ -9,7 +9,10 @@ import { apiHandler } from '@/lib/api-handler'
 const stockSchema = z.object({
   productId: z.string().min(1),
   quantity: z.coerce.number().int(),
-  type: z.enum(['IN', 'OUT', 'ADJUSTMENT']),
+  type: z.enum(['IN', 'OUT', 'ADJUSTMENT', 'TRANSFER']),
+  // Which stock IN/OUT/ADJUSTMENT apply to. For TRANSFER it is the destination:
+  // STORE = warehouse → stores, WAREHOUSE = stores → warehouse.
+  location: z.enum(['STORE', 'WAREHOUSE']).default('STORE'),
   reason: z.string().optional().nullable(),
 })
 
@@ -40,31 +43,48 @@ export const POST = apiHandler(async function POST(request: NextRequest) {
   if (!parsed.success) {
     throw new ApiError(400, zodMessage(parsed.error))
   }
-  const { productId, quantity, type, reason } = parsed.data
-  if (quantity <= 0) throw new ApiError(400, 'Quantity must be positive')
+  const { productId, quantity, type, location, reason } = parsed.data
+  if (quantity <= 0 && type !== 'ADJUSTMENT') throw new ApiError(400, 'Quantity must be positive')
+  if (quantity < 0) throw new ApiError(400, 'Quantity must not be negative')
 
   const product = await prisma.product.findUnique({ where: { id: productId } })
   if (!product) throw new ApiError(404, 'Product not found')
 
-  let newQuantity = product.quantity
-  if (type === 'IN') newQuantity += quantity
+  let store = product.quantity
+  let warehouse = product.warehouseQuantity
+  const current = location === 'STORE' ? store : warehouse
+  let next = current
+  if (type === 'IN') next = current + quantity
   else if (type === 'OUT') {
-    if (quantity > product.quantity) throw new ApiError(400, 'Insufficient stock')
-    newQuantity -= quantity
-  } else {
-    newQuantity = quantity
-  }
+    if (quantity > current) throw new ApiError(400, `Insufficient stock: ${current} left`)
+    next = current - quantity
+  } else if (type === 'ADJUSTMENT') next = quantity
+
+  if (type === 'TRANSFER') {
+    // `location` is the destination; the source is the other stock.
+    const source = location === 'STORE' ? warehouse : store
+    if (quantity > source) throw new ApiError(400, `Insufficient stock: ${source} left`)
+    if (location === 'STORE') {
+      warehouse -= quantity
+      store += quantity
+    } else {
+      store -= quantity
+      warehouse += quantity
+    }
+  } else if (location === 'STORE') store = next
+  else warehouse = next
 
   const result = await prisma.$transaction([
     prisma.product.update({
       where: { id: productId },
-      data: { quantity: newQuantity },
+      data: { quantity: store, warehouseQuantity: warehouse },
     }),
     prisma.stockMovement.create({
       data: {
         productId,
         quantity,
         type: type as StockMovementType,
+        location,
         reason,
         userId: session.id,
       },

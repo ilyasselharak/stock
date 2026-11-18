@@ -8,6 +8,7 @@ const MAX_SKUS = 500
 // Read-only stock levels for other apps (electro-darna affiliate products).
 // Authenticated with `Authorization: Bearer $STOCK_SHARE_KEY`.
 // POST { skus: string[] } -> { items: [{ sku, quantity }] }; unknown SKUs are left out.
+// `quantity` is the total stock: stores + warehouse.
 export const POST = apiHandler(async function POST(request: NextRequest) {
   const key = process.env.STOCK_SHARE_KEY
   if (!key || request.headers.get('authorization') !== `Bearer ${key}`) {
@@ -23,8 +24,10 @@ export const POST = apiHandler(async function POST(request: NextRequest) {
 
   const products = await prisma.product.findMany({
     where: { sku: { in: skus } },
-    select: { sku: true, quantity: true },
+    select: { sku: true, quantity: true, warehouseQuantity: true },
   })
 
-  return NextResponse.json({ items: products })
+  return NextResponse.json({
+    items: products.map((p) => ({ sku: p.sku, quantity: p.quantity + p.warehouseQuantity })),
+  })
 })

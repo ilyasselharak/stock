@@ -56,6 +56,12 @@ export default function InventoryManager({ isAdmin }: { isAdmin: boolean }) {
   const [exporting, setExporting] = useState(false)
   const [applyOpen, setApplyOpen] = useState(false)
   const [applying, setApplying] = useState(false)
+  // Uncounted products are treated as absent (stock 0) unless the admin opts out,
+  // e.g. for a partial count of one shelf.
+  const [zeroUncounted, setZeroUncounted] = useState(true)
+  // The count covers the stores only. When on, the difference with the store stock is
+  // taken from / put back into the warehouse (first count after adding the warehouse).
+  const [fromWarehouse, setFromWarehouse] = useState(false)
 
   const fetchProducts = useCallback(async () => {
     setLoading(true)
@@ -204,7 +210,12 @@ export default function InventoryManager({ isAdmin }: { isAdmin: boolean }) {
       const res = await fetch('/api/inventory/apply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ counts: draft.counts }),
+        body: JSON.stringify({
+          counts: zeroUncounted
+            ? { ...Object.fromEntries(analysis.notCounted.map((l) => [l.id, 0])), ...draft.counts }
+            : draft.counts,
+          fromWarehouse,
+        }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -221,14 +232,15 @@ export default function InventoryManager({ isAdmin }: { isAdmin: boolean }) {
     }
   }
 
-  const changesCount = analysis.surplus.length + analysis.shortage.length
+  const diffCount = analysis.surplus.length + analysis.shortage.length
+  const changesCount = diffCount + (zeroUncounted ? analysis.notCounted.length : 0)
   const countedCount = analysis.countedProducts
   const progress = products.length ? Math.round((countedCount / products.length) * 100) : 0
 
   return (
     <div>
       <PageHeader
-        title={t('inventory')}
+        title={`${t('inventory')} · ${t('stores')}`}
         subtitle={`${countedCount} / ${products.length} ${t('productsCounted')}${draft ? ` · ${t('startedAt')} ${formatDateTime(draft.startedAt)}` : ''}`}
         action={
           <div className="flex gap-2">
@@ -286,7 +298,7 @@ export default function InventoryManager({ isAdmin }: { isAdmin: boolean }) {
                   <p className="truncate font-medium text-slate-900">{p.name}</p>
                   <p className="truncate text-xs text-slate-500">
                     {p.sku}
-                    {p.brand ? ` · ${p.brand}` : ''} · {t('currentStock')}: <span className="font-semibold text-slate-700">{p.quantity}</span>
+                    {p.brand ? ` · ${p.brand}` : ''} · {t('storeStock')}: <span className="font-semibold text-slate-700">{p.quantity}</span>
                   </p>
                 </div>
 
@@ -419,7 +431,7 @@ export default function InventoryManager({ isAdmin }: { isAdmin: boolean }) {
               <p className="text-sm text-slate-400">{t('allCounted')}</p>
             ) : (
               <SimpleTable
-                head={[t('name'), t('sku'), t('currentStock')]}
+                head={[t('name'), t('sku'), t('storeStock')]}
                 rows={analysis.notCounted.map((l) => [l.name, l.sku, String(l.quantity)])}
               />
             )}
@@ -437,7 +449,7 @@ export default function InventoryManager({ isAdmin }: { isAdmin: boolean }) {
             <Button variant="secondary" onClick={() => setAnalysisOpen(false)}>{t('close')}</Button>
             <Button variant="secondary" onClick={exportPdf} loading={exporting}>{t('exportPdf')}</Button>
             {isAdmin && (
-              <Button onClick={() => setApplyOpen(true)} disabled={changesCount === 0}>
+              <Button onClick={() => setApplyOpen(true)} disabled={diffCount + analysis.notCounted.length === 0}>
                 {t('applyToStock')}
               </Button>
             )}
@@ -449,15 +461,38 @@ export default function InventoryManager({ isAdmin }: { isAdmin: boolean }) {
         <div className="space-y-3 text-sm text-slate-600">
           <p>{t('applyToStockConfirm').replace('{n}', String(changesCount))}</p>
           {analysis.notCounted.length > 0 && (
-            <p className="rounded-xl bg-amber-50 px-3 py-2 text-amber-700">
-              {t('applyNotCountedNote').replace('{n}', String(analysis.notCounted.length))}
-            </p>
+            <>
+              <label className="flex cursor-pointer items-center gap-2 font-medium text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={zeroUncounted}
+                  onChange={(e) => setZeroUncounted(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-indigo-600"
+                />
+                {t('applyZeroNotCounted').replace('{n}', String(analysis.notCounted.length))}
+              </label>
+              <p className="rounded-xl bg-amber-50 px-3 py-2 text-amber-700">
+                {t(zeroUncounted ? 'applyZeroNotCountedNote' : 'applyNotCountedNote').replace('{n}', String(analysis.notCounted.length))}
+              </p>
+            </>
           )}
+          <label className="flex cursor-pointer items-start gap-2 font-medium text-slate-700">
+            <input
+              type="checkbox"
+              checked={fromWarehouse}
+              onChange={(e) => setFromWarehouse(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600"
+            />
+            <span>
+              {t('applyFromWarehouse')}
+              <span className="mt-0.5 block text-xs font-normal text-slate-500">{t('applyFromWarehouseNote')}</span>
+            </span>
+          </label>
           <p className="rounded-xl bg-slate-50 px-3 py-2">{t('applyExportFirst')}</p>
         </div>
         <div className="mt-5 flex justify-end gap-3">
           <Button variant="secondary" onClick={() => setApplyOpen(false)} disabled={applying}>{t('cancel')}</Button>
-          <Button onClick={applyToStock} loading={applying}>{t('applyToStock')}</Button>
+          <Button onClick={applyToStock} loading={applying} disabled={changesCount === 0}>{t('applyToStock')}</Button>
         </div>
       </Modal>
 
@@ -526,7 +561,7 @@ function DiffSection({ title, lines, tone, empty }: { title: string; lines: Inve
         <p className="text-sm text-slate-400">{empty}</p>
       ) : (
         <SimpleTable
-          head={[t('name'), t('currentStock'), t('countedQty'), t('difference'), t('valueDifference')]}
+          head={[t('name'), t('storeStock'), t('countedQty'), t('difference'), t('valueDifference')]}
           rows={lines.map((l) => [l.name, String(l.quantity), String(l.counted), signed(l.diff), formatMoney(l.valueDiff)])}
           tones={[undefined, undefined, undefined, `font-semibold ${color}`, color]}
         />

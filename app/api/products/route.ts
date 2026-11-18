@@ -12,6 +12,7 @@ const productSchema = z.object({
   brand: z.string().optional().nullable(),
   basePrice: z.coerce.number().min(0),
   quantity: z.coerce.number().int().min(0).optional().default(0),
+  warehouseQuantity: z.coerce.number().int().min(0).optional().default(0),
   image: z.string().optional().nullable(),
   imageUrl: z.string().optional().nullable(),
 })
@@ -60,7 +61,7 @@ export const POST = apiHandler(async function POST(request: NextRequest) {
   if (!parsed.success) {
     throw new ApiError(400, zodMessage(parsed.error))
   }
-  const { name, sku, brand, basePrice, quantity, image, imageUrl } = parsed.data
+  const { name, sku, brand, basePrice, quantity, warehouseQuantity, image, imageUrl } = parsed.data
 
   const existing = await prisma.product.findUnique({ where: { sku } })
   if (existing) throw new ApiError(400, 'SKU already exists')
@@ -71,7 +72,7 @@ export const POST = apiHandler(async function POST(request: NextRequest) {
   }
 
   const product = await prisma.product.create({
-    data: { name, brand, sku, basePrice, imageUrl: finalImage, quantity },
+    data: { name, brand, sku, basePrice, imageUrl: finalImage, quantity, warehouseQuantity },
   })
   return NextResponse.json(product, { status: 201 })
 })

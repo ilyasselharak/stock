@@ -49,7 +49,7 @@ export const POST = apiHandler(async function POST(request: NextRequest) {
 
   const { doc, done } = createReportDoc()
   const contentW = doc.page.width - MARGIN * 2
-  const title = "Rapport d'inventaire"
+  const title = "Rapport d'inventaire — magasins"
 
   const started = startedAt ? new Date(startedAt) : null
   drawHeaderBand(
@@ -94,7 +94,7 @@ export const POST = apiHandler(async function POST(request: NextRequest) {
     [
       { label: 'PRODUIT', width: contentW - 110 - 80 - 110, value: (l) => l.name },
       { label: 'SKU', width: 110, value: (l) => l.sku },
-      { label: 'EN STOCK', width: 80, align: 'right', value: (l) => String(l.quantity) },
+      { label: 'MAGASINS', width: 80, align: 'right', value: (l) => String(l.quantity) },
       { label: 'VALEUR', width: 110, align: 'right', value: (l) => formatMoney(l.quantity * l.basePrice) },
     ],
     a.notCounted,

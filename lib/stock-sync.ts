@@ -40,30 +40,45 @@ async function fetchExternalStock(skus: string[]): Promise<Map<string, number>> 
   return stock
 }
 
-// Reads every product's SKU from the external system and sets the local stock to it.
-// Each change is logged as an ADJUSTMENT movement whose quantity is the new absolute
-// stock (same meaning as in /api/stock and /api/inventory/apply).
+// Reads every product's SKU from the external system, which reports the total stock
+// (stores + warehouse), and makes the local total match it. The difference goes to the
+// warehouse; only when the warehouse would drop below 0 is the rest taken from the
+// stores. Each change is logged as an ADJUSTMENT movement whose quantity is the new
+// absolute stock of that location (same meaning as in /api/stock and /api/inventory/apply).
 export async function syncStockFromExternal(userId: string) {
-  const products = await prisma.product.findMany({ select: { id: true, sku: true, quantity: true } })
+  const products = await prisma.product.findMany({
+    select: { id: true, sku: true, quantity: true, warehouseQuantity: true },
+  })
   const external = await fetchExternalStock(products.map((p) => p.sku))
 
-  const changes = products.filter((p) => external.has(p.sku) && external.get(p.sku) !== p.quantity)
+  const changes = products.filter(
+    (p) => external.has(p.sku) && external.get(p.sku) !== p.quantity + p.warehouseQuantity
+  )
 
   if (changes.length > 0) {
     await prisma.$transaction(
       changes.flatMap((p) => {
-        const qty = external.get(p.sku)!
+        const total = external.get(p.sku)!
+        const warehouse = Math.max(0, total - p.quantity)
+        const store = total - warehouse
+        const parts = [
+          { location: 'STORE' as const, prev: p.quantity, next: store },
+          { location: 'WAREHOUSE' as const, prev: p.warehouseQuantity, next: warehouse },
+        ].filter((x) => x.prev !== x.next)
         return [
-          prisma.product.update({ where: { id: p.id }, data: { quantity: qty } }),
-          prisma.stockMovement.create({
-            data: {
-              productId: p.id,
-              quantity: qty,
-              type: 'ADJUSTMENT',
-              reason: `Synchro externe (${p.quantity} → ${qty})`,
-              userId,
-            },
-          }),
+          prisma.product.update({ where: { id: p.id }, data: { quantity: store, warehouseQuantity: warehouse } }),
+          ...parts.map((x) =>
+            prisma.stockMovement.create({
+              data: {
+                productId: p.id,
+                quantity: x.next,
+                type: 'ADJUSTMENT',
+                location: x.location,
+                reason: `Synchro externe (${x.prev} → ${x.next})`,
+                userId,
+              },
+            })
+          ),
         ]
       })
     )

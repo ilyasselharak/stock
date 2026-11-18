@@ -16,6 +16,13 @@ enum StockMovementType {
   IN
   OUT
   ADJUSTMENT
+  // Units moved between the warehouse and the stores; `location` is the destination.
+  TRANSFER
+}
+
+enum StockLocation {
+  STORE
+  WAREHOUSE
 }
 
 enum PaymentStatus {
@@ -47,7 +54,10 @@ model Product {
   brand        String?
   sku          String   @unique
   basePrice    Float
+  // Stock on the shelves of the stores (both stores together). Sales take from here.
   quantity     Int      @default(0)
+  // Stock kept in the warehouse, moved to the stores with TRANSFER movements.
+  warehouseQuantity Int @default(0)
   imageUrl     String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -137,6 +147,9 @@ model StockMovement {
   product   Product?         @relation(fields: [productId], references: [id])
   quantity  Int
   type      StockMovementType
+  // Which stock the movement applies to (for TRANSFER: where the units went).
+  // Null on movements recorded before the warehouse existed, which were all STORE.
+  location  StockLocation?
   reason    String?
   // Set by /api/public/stock-holds: the external order these units belong to
   // (e.g. "ed-sale-<id>" for an ElectroDarna seller order).

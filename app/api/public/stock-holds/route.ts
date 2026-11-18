@@ -10,7 +10,9 @@ import { apiHandler } from '@/lib/api-handler'
 // takes from product `sku` (0 = none, e.g. after a cancellation). Only the
 // difference with what `ref` already took is applied, logged as an OUT or IN
 // movement carrying `reference: ref`, so repeating a request is harmless.
-// -> { sku, quantity (product stock now), held (units taken by ref) }
+// Units are taken from the stores first, then from the warehouse when the stores run
+// out; returned units go back to the stores.
+// -> { sku, quantity (total stock now: stores + warehouse), held (units taken by ref) }
 export const POST = apiHandler(async function POST(request: NextRequest) {
   const key = process.env.STOCK_SHARE_KEY
   if (!key || request.headers.get('authorization') !== `Bearer ${key}`) {
@@ -37,26 +39,42 @@ export const POST = apiHandler(async function POST(request: NextRequest) {
     })
     const held = movements.reduce((sum, m) => sum + (m.type === 'OUT' ? m.quantity : m.type === 'IN' ? -m.quantity : 0), 0)
     const delta = quantity - held
-    if (delta === 0) return { sku: product.sku, quantity: product.quantity, held }
+    const total = product.quantity + product.warehouseQuantity
+    if (delta === 0) return { sku: product.sku, quantity: total, held }
 
-    if (delta > 0 && product.quantity < delta) {
-      throw new ApiError(409, `Insufficient stock: ${product.quantity} left`)
+    if (delta > 0 && total < delta) {
+      throw new ApiError(409, `Insufficient stock: ${total} left`)
     }
 
+    // delta > 0 takes units (stores first), delta < 0 puts them back in the stores.
+    const fromStore = delta > 0 ? Math.min(delta, Math.max(0, product.quantity)) : delta
+    const fromWarehouse = delta - fromStore
     const updated = await tx.product.update({
       where: { id: product.id },
-      data: { quantity: { decrement: delta } },
-    })
-    await tx.stockMovement.create({
       data: {
-        productId: product.id,
-        quantity: Math.abs(delta),
-        type: delta > 0 ? 'OUT' : 'IN',
-        reason: delta > 0 ? 'Commande vendeur ElectroDarna' : 'Annulation commande vendeur ElectroDarna',
-        reference: ref,
+        quantity: { decrement: fromStore },
+        warehouseQuantity: { decrement: fromWarehouse },
       },
     })
-    return { sku: updated.sku, quantity: updated.quantity, held: quantity }
+    const reason = delta > 0 ? 'Commande vendeur ElectroDarna' : 'Annulation commande vendeur ElectroDarna'
+    const parts = [
+      { location: 'STORE' as const, units: fromStore },
+      { location: 'WAREHOUSE' as const, units: fromWarehouse },
+    ]
+    for (const part of parts) {
+      if (part.units === 0) continue
+      await tx.stockMovement.create({
+        data: {
+          productId: product.id,
+          quantity: Math.abs(part.units),
+          type: part.units > 0 ? 'OUT' : 'IN',
+          location: part.location,
+          reason,
+          reference: ref,
+        },
+      })
+    }
+    return { sku: updated.sku, quantity: updated.quantity + updated.warehouseQuantity, held: quantity }
   })
 
   return NextResponse.json(result)

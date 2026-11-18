@@ -27,7 +27,7 @@ export async function getReportData(period: string) {
       where: Object.keys(dateFilter).length ? { date: dateFilter } : {},
       include: { user: { select: { name: true } }, creditSale: { include: { customer: true } } },
     }),
-    prisma.product.findMany({ select: { id: true, name: true, sku: true, quantity: true, basePrice: true } }),
+    prisma.product.findMany({ select: { id: true, name: true, sku: true, quantity: true, warehouseQuantity: true, basePrice: true } }),
   ])
 
   const totalRevenue = sales.reduce((s, x) => s + x.total, 0)
@@ -57,7 +57,7 @@ export async function getReportData(period: string) {
     .sort((a, b) => b.revenue - a.revenue)
     .slice(0, 10)
 
-  const stockValue = products.reduce((s, p) => s + p.quantity * p.basePrice, 0)
+  const stockValue = products.reduce((s, p) => s + (p.quantity + p.warehouseQuantity) * p.basePrice, 0)
   const lowStock = products.filter((p) => p.quantity <= 5)
 
   return {

@@ -7,17 +7,22 @@ import { Button, EmptyState, Input, LoadingScreen, Modal, Pagination, ProductPic
 import { PageHeader } from '@/components/page-header'
 import { signOut } from 'next-auth/react'
 
+type MovementType = 'IN' | 'OUT' | 'ADJUSTMENT' | 'TRANSFER'
+type Location = 'STORE' | 'WAREHOUSE'
+
 type Movement = {
   id: string
   product: { id: string; name: string; sku: string } | null
   quantity: number
-  type: 'IN' | 'OUT' | 'ADJUSTMENT'
+  type: MovementType
+  // Null on movements recorded before the warehouse existed (all were in the stores).
+  location: Location | null
   reason: string | null
   date: string
   user: { name: string } | null
 }
 
-type Product = { id: string; name: string; sku: string; brand: string | null; quantity: number }
+type Product = { id: string; name: string; sku: string; brand: string | null; quantity: number; warehouseQuantity: number }
 
 const PER_PAGE = 15
 
@@ -35,7 +40,9 @@ export default function StockManager({ isAdmin }: { isAdmin: boolean }) {
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
     productId: '',
-    type: 'IN' as 'IN' | 'OUT' | 'ADJUSTMENT',
+    type: 'TRANSFER' as MovementType,
+    // For TRANSFER: the destination (STORE = warehouse → stores).
+    location: 'STORE' as Location,
     quantity: '',
     reason: '',
   })
@@ -56,7 +63,7 @@ export default function StockManager({ isAdmin }: { isAdmin: boolean }) {
   }, [])
 
   const fetchProducts = useCallback(async () => {
-    const res = await fetch('/api/products?page=1&limit=100')
+    const res = await fetch('/api/products?page=1&limit=500')
     const data = await res.json()
     setProducts(data.products || [])
   }, [])
@@ -67,7 +74,7 @@ export default function StockManager({ isAdmin }: { isAdmin: boolean }) {
   }, [page])
 
   function openModal() {
-    setForm({ productId: '', type: 'IN', quantity: '', reason: '' })
+    setForm({ productId: '', type: 'TRANSFER', location: 'STORE', quantity: '', reason: '' })
     setModalOpen(true)
   }
 
@@ -81,6 +88,7 @@ export default function StockManager({ isAdmin }: { isAdmin: boolean }) {
         body: JSON.stringify({
           productId: form.productId,
           type: form.type,
+          location: form.location,
           quantity: parseInt(form.quantity),
           reason: form.reason,
         }),
@@ -120,12 +128,13 @@ export default function StockManager({ isAdmin }: { isAdmin: boolean }) {
       ) : (
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[650px] text-sm">
+            <table className="w-full min-w-[750px] text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                   <th className="px-4 py-3">{t('productName')}</th>
                   <th className="px-4 py-3">{t('sku')}</th>
                   <th className="px-4 py-3">{t('type')}</th>
+                  <th className="px-4 py-3">{t('location')}</th>
                   <th className="px-4 py-3">{t('quantity')}</th>
                   <th className="px-4 py-3">{t('reason')}</th>
                   <th className="px-4 py-3">{t('user')}</th>
@@ -144,11 +153,18 @@ export default function StockManager({ isAdmin }: { isAdmin: boolean }) {
                             ? 'bg-emerald-100 text-emerald-700'
                             : m.type === 'OUT'
                               ? 'bg-rose-100 text-rose-700'
-                              : 'bg-indigo-100 text-indigo-700'
+                              : m.type === 'TRANSFER'
+                                ? 'bg-sky-100 text-sky-700'
+                                : 'bg-indigo-100 text-indigo-700'
                         }`}
                       >
                         {t(m.type.toLowerCase())}
                       </span>
+                    </td>
+                    <td className="px-4 py-3 text-slate-500">
+                      {m.type === 'TRANSFER'
+                        ? t(m.location === 'WAREHOUSE' ? 'transferToWarehouse' : 'transferToStores')
+                        : t(m.location === 'WAREHOUSE' ? 'warehouse' : 'stores')}
                     </td>
                     <td className="px-4 py-3 font-semibold text-slate-700">{m.quantity}</td>
                     <td className="px-4 py-3 text-slate-500">{m.reason || '—'}</td>
@@ -173,26 +189,40 @@ export default function StockManager({ isAdmin }: { isAdmin: boolean }) {
           />
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Select label={t('type')} value={form.type} onChange={(v) => setForm((f) => ({ ...f, type: v as 'IN' | 'OUT' | 'ADJUSTMENT' }))}>
+            <Select label={t('type')} value={form.type} onChange={(v) => setForm((f) => ({ ...f, type: v as MovementType }))}>
+              <option value="TRANSFER">{t('transfer')}</option>
               <option value="IN">{t('stockIn')}</option>
               <option value="OUT">{t('stockOut')}</option>
               <option value="ADJUSTMENT">{t('adjustment')}</option>
             </Select>
-            <Input
-              label={t('quantity')}
-              type="number"
-              min="1"
-              value={form.quantity}
-              onChange={(v) => setForm((f) => ({ ...f, quantity: v }))}
-              required
-            />
+            <Select
+              label={form.type === 'TRANSFER' ? t('direction') : t('location')}
+              value={form.location}
+              onChange={(v) => setForm((f) => ({ ...f, location: v as Location }))}
+            >
+              <option value="STORE">{form.type === 'TRANSFER' ? t('transferToStores') : t('stores')}</option>
+              <option value="WAREHOUSE">{form.type === 'TRANSFER' ? t('transferToWarehouse') : t('warehouse')}</option>
+            </Select>
           </div>
+
+          <Input
+            label={t('quantity')}
+            type="number"
+            min={form.type === 'ADJUSTMENT' ? '0' : '1'}
+            value={form.quantity}
+            onChange={(v) => setForm((f) => ({ ...f, quantity: v }))}
+            required
+            hint={(() => {
+              const p = products.find((x) => x.id === form.productId)
+              return p ? `${t('stores')}: ${p.quantity} · ${t('warehouse')}: ${p.warehouseQuantity ?? 0}` : undefined
+            })()}
+          />
 
           <Input
             label={t('reason')}
             value={form.reason}
             onChange={(v) => setForm((f) => ({ ...f, reason: v }))}
-            placeholder={form.type === 'ADJUSTMENT' ? 'Inventaire / casse / perte...' : 'Livraison / retour...'}
+            placeholder={form.type === 'ADJUSTMENT' ? 'Inventaire / casse / perte...' : form.type === 'TRANSFER' ? 'Réassort magasins...' : 'Livraison / retour...'}
           />
 
           <div className="flex justify-end gap-3 pt-2">

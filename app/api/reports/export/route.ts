@@ -70,17 +70,18 @@ export const GET = apiHandler(async function GET(request: NextRequest) {
   )
 
   // ---------- Low stock ----------
-  sectionTitle(doc, 'Stock faible (5 unités ou moins)', MARGIN, contentW)
+  sectionTitle(doc, 'Stock faible en magasins (5 unités ou moins)', MARGIN, contentW)
   drawTable<(typeof lowStock)[number]>(
     doc,
     MARGIN,
     contentW,
     [
-      { label: 'PRODUIT', width: contentW - 120 - 100, value: (p) => p.name },
+      { label: 'PRODUIT', width: contentW - 120 - 90 - 90, value: (p) => p.name },
       { label: 'SKU', width: 120, value: (p) => p.sku },
+      { label: 'ENTREPÔT', width: 90, align: 'right', value: (p) => String(p.warehouseQuantity) },
       {
-        label: 'QUANTITÉ',
-        width: 100,
+        label: 'MAGASINS',
+        width: 90,
         align: 'right',
         value: (p) => String(p.quantity),
         color: (p) => (p.quantity === 0 ? ROSE : AMBER),

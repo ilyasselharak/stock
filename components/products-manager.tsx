@@ -23,6 +23,7 @@ type Product = {
   sku: string
   basePrice: number
   quantity: number
+  warehouseQuantity: number
   imageUrl: string | null
   createdAt: string
 }
@@ -53,6 +54,7 @@ export default function ProductsManager({ isAdmin }: { isAdmin: boolean }) {
     brand: '',
     basePrice: '',
     quantity: '',
+    warehouseQuantity: '',
     imageUrl: '',
     imageBase64: '',
     imageError: '',
@@ -95,7 +97,7 @@ export default function ProductsManager({ isAdmin }: { isAdmin: boolean }) {
 
   function openCreate() {
     setEditing(null)
-    setForm({ name: '', sku: '', brand: '', basePrice: '', quantity: '', imageUrl: '', imageBase64: '', imageError: '' })
+    setForm({ name: '', sku: '', brand: '', basePrice: '', quantity: '', warehouseQuantity: '', imageUrl: '', imageBase64: '', imageError: '' })
     setModalOpen(true)
   }
 
@@ -107,6 +109,7 @@ export default function ProductsManager({ isAdmin }: { isAdmin: boolean }) {
       brand: p.brand || '',
       basePrice: String(p.basePrice),
       quantity: String(p.quantity),
+      warehouseQuantity: String(p.warehouseQuantity ?? 0),
       imageUrl: p.imageUrl || '',
       imageBase64: '',
       imageError: '',
@@ -139,6 +142,7 @@ export default function ProductsManager({ isAdmin }: { isAdmin: boolean }) {
             brand: form.brand || null,
             basePrice: parseFloat(form.basePrice),
             quantity: parseInt(form.quantity) || 0,
+            warehouseQuantity: parseInt(form.warehouseQuantity) || 0,
             image: form.imageBase64 || null,
             imageUrl: form.imageBase64 ? undefined : form.imageUrl || null,
           }
@@ -148,6 +152,7 @@ export default function ProductsManager({ isAdmin }: { isAdmin: boolean }) {
             brand: form.brand || null,
             basePrice: parseFloat(form.basePrice),
             quantity: parseInt(form.quantity) || 0,
+            warehouseQuantity: parseInt(form.warehouseQuantity) || 0,
             image: form.imageBase64 || null,
           }
       const res = await fetch(editing ? `/api/products/${editing.id}` : '/api/products', {
@@ -251,7 +256,8 @@ export default function ProductsManager({ isAdmin }: { isAdmin: boolean }) {
                   <th className="px-4 py-3">{t('brand')}</th>
                   <th className="px-4 py-3">{t('sku')}</th>
                   <th className="px-4 py-3">{t('basePrice')}</th>
-                  <th className="px-4 py-3">{t('currentStock')}</th>
+                  <th className="px-4 py-3">{t('storeStock')}</th>
+                  <th className="px-4 py-3">{t('warehouseStock')}</th>
                   <th className="px-4 py-3 text-right">{t('actions')}</th>
                 </tr>
               </thead>
@@ -279,6 +285,7 @@ export default function ProductsManager({ isAdmin }: { isAdmin: boolean }) {
                         {p.quantity}
                       </span>
                     </td>
+                    <td className="px-4 py-3 font-semibold text-slate-600">{p.warehouseQuantity ?? 0}</td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">
                         <button
@@ -321,7 +328,10 @@ export default function ProductsManager({ isAdmin }: { isAdmin: boolean }) {
             <Input label={t('sku')} value={form.sku} onChange={(v) => setForm((f) => ({ ...f, sku: v }))} required placeholder="SKU-001" />
           </div>
           {isAdmin && (
-            <Input label={t('stockQuantity')} type="number" min="0" value={form.quantity} onChange={(v) => setForm((f) => ({ ...f, quantity: v }))} />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Input label={t('storeStock')} type="number" min="0" value={form.quantity} onChange={(v) => setForm((f) => ({ ...f, quantity: v }))} />
+              <Input label={t('warehouseStock')} type="number" min="0" value={form.warehouseQuantity} onChange={(v) => setForm((f) => ({ ...f, warehouseQuantity: v }))} />
+            </div>
           )}
           <Input label={t('basePrice')} type="number" step="0.01" min="0" value={form.basePrice} onChange={(v) => setForm((f) => ({ ...f, basePrice: v }))} required hint={`${t('profit')} = (${t('sellingPrice')} - ${t('basePrice')}) × ${t('quantity')}`} />
           <div>
