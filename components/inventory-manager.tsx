@@ -21,15 +21,25 @@ type Draft = {
 
 type Filter = 'all' | 'notCounted' | 'counted' | 'differences'
 
-const STORAGE_KEY = 'inventory-count'
+type Location = 'STORE' | 'WAREHOUSE'
+
+// Each location has its own count in progress. The store key is the one used before
+// the warehouse existed, so a count started then is kept.
+const STORAGE_KEYS: Record<Location, string> = {
+  STORE: 'inventory-count',
+  WAREHOUSE: 'inventory-count-warehouse',
+}
+const LOCATION_KEY = 'inventory-location'
+
+type ApiProduct = InventoryProduct & { warehouseQuantity: number }
 
 function newDraft(): Draft {
   return { startedAt: new Date().toISOString(), counts: {}, extras: [] }
 }
 
-function loadDraft(): Draft {
+function loadDraft(location: Location): Draft {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(STORAGE_KEYS[location])
     if (raw) {
       const d = JSON.parse(raw)
       if (d && typeof d.counts === 'object' && Array.isArray(d.extras)) return d
@@ -45,9 +55,29 @@ function signed(n: number) {
 export default function InventoryManager({ isAdmin }: { isAdmin: boolean }) {
   const { t, formatMoney, formatDateTime } = useI18n()
   const { toast } = useToast()
-  const [products, setProducts] = useState<InventoryProduct[]>([])
+  const [apiProducts, setApiProducts] = useState<ApiProduct[]>([])
   const [loading, setLoading] = useState(true)
-  const [draft, setDraft] = useState<Draft | null>(null)
+  const [location, setLocation] = useState<Location>('STORE')
+  const [drafts, setDrafts] = useState<Record<Location, Draft> | null>(null)
+  const draft = drafts?.[location] ?? null
+  const setDraft = useCallback(
+    (update: (d: Draft | null) => Draft | null) =>
+      setDrafts((all) => {
+        if (!all) return all
+        const next = update(all[location])
+        return next ? { ...all, [location]: next } : all
+      }),
+    [location]
+  )
+  // The analysis compares the count with the stock of the location being counted.
+  const products = useMemo<InventoryProduct[]>(
+    () =>
+      apiProducts.map(({ warehouseQuantity, ...p }) => ({
+        ...p,
+        quantity: location === 'WAREHOUSE' ? (warehouseQuantity ?? 0) : p.quantity,
+      })),
+    [apiProducts, location]
+  )
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
   const [extraForm, setExtraForm] = useState({ name: '', quantity: '1' })
@@ -69,23 +99,39 @@ export default function InventoryManager({ isAdmin }: { isAdmin: boolean }) {
       const res = await fetch('/api/inventory')
       if (res.status === 401) { signOut(); return }
       const data = await res.json()
-      setProducts(data.products || [])
+      setApiProducts(data.products || [])
     } finally {
       setLoading(false)
     }
   }, [])
 
   useEffect(() => {
-    setDraft(loadDraft())
+    setDrafts({ STORE: loadDraft('STORE'), WAREHOUSE: loadDraft('WAREHOUSE') })
+    try {
+      if (localStorage.getItem(LOCATION_KEY) === 'WAREHOUSE') setLocation('WAREHOUSE')
+    } catch {}
     fetchProducts()
   }, [fetchProducts])
 
   useEffect(() => {
-    if (!draft) return
+    if (!drafts) return
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(draft))
+      localStorage.setItem(STORAGE_KEYS.STORE, JSON.stringify(drafts.STORE))
+      localStorage.setItem(STORAGE_KEYS.WAREHOUSE, JSON.stringify(drafts.WAREHOUSE))
     } catch {}
-  }, [draft])
+  }, [drafts])
+
+  function switchLocation(next: Location) {
+    if (next === location) return
+    setLocation(next)
+    setFilter('all')
+    setSearch('')
+    setAnalysisOpen(false)
+    setFromWarehouse(false)
+    try {
+      localStorage.setItem(LOCATION_KEY, next)
+    } catch {}
+  }
 
   const emptyCounts = useMemo<Record<string, number>>(() => ({}), [])
   const emptyExtras = useMemo<ExtraItem[]>(() => [], [])
@@ -167,7 +213,7 @@ export default function InventoryManager({ isAdmin }: { isAdmin: boolean }) {
   }
 
   function reset() {
-    setDraft(newDraft())
+    setDraft(() => newDraft())
     setResetOpen(false)
     setAnalysisOpen(false)
     fetchProducts()
@@ -182,7 +228,7 @@ export default function InventoryManager({ isAdmin }: { isAdmin: boolean }) {
       const res = await fetch('/api/inventory/report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(draft),
+        body: JSON.stringify({ ...draft, location }),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
@@ -193,7 +239,7 @@ export default function InventoryManager({ isAdmin }: { isAdmin: boolean }) {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `inventaire-${new Date().toISOString().slice(0, 10)}.pdf`
+      a.download = `inventaire-${location === 'WAREHOUSE' ? 'entrepot' : 'magasins'}-${new Date().toISOString().slice(0, 10)}.pdf`
       document.body.appendChild(a)
       a.click()
       a.remove()
@@ -214,7 +260,8 @@ export default function InventoryManager({ isAdmin }: { isAdmin: boolean }) {
           counts: zeroUncounted
             ? { ...Object.fromEntries(analysis.notCounted.map((l) => [l.id, 0])), ...draft.counts }
             : draft.counts,
-          fromWarehouse,
+          location,
+          fromWarehouse: location === 'STORE' && fromWarehouse,
         }),
       })
       const data = await res.json().catch(() => ({}))
@@ -240,7 +287,7 @@ export default function InventoryManager({ isAdmin }: { isAdmin: boolean }) {
   return (
     <div>
       <PageHeader
-        title={`${t('inventory')} · ${t('stores')}`}
+        title={`${t('inventory')} · ${t(location === 'WAREHOUSE' ? 'warehouse' : 'stores')}`}
         subtitle={`${countedCount} / ${products.length} ${t('productsCounted')}${draft ? ` · ${t('startedAt')} ${formatDateTime(draft.startedAt)}` : ''}`}
         action={
           <div className="flex gap-2">
@@ -253,6 +300,26 @@ export default function InventoryManager({ isAdmin }: { isAdmin: boolean }) {
           </div>
         }
       />
+
+      <div className="mb-4 inline-flex rounded-xl border border-slate-200 bg-white p-1">
+        {(['STORE', 'WAREHOUSE'] as const).map((l) => (
+          <button
+            key={l}
+            type="button"
+            onClick={() => switchLocation(l)}
+            className={`rounded-lg px-4 py-1.5 text-sm font-medium transition ${
+              location === l ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            {t(l === 'WAREHOUSE' ? 'warehouse' : 'stores')}
+            {drafts && Object.keys(drafts[l].counts).length > 0 && (
+              <span className={`ms-2 text-xs ${location === l ? 'text-indigo-100' : 'text-slate-400'}`}>
+                {Object.keys(drafts[l].counts).length}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
 
       <div className="mb-4 h-2 overflow-hidden rounded-full bg-slate-200">
         <div className="h-full rounded-full bg-indigo-600 transition-all" style={{ width: `${progress}%` }} />
@@ -298,7 +365,7 @@ export default function InventoryManager({ isAdmin }: { isAdmin: boolean }) {
                   <p className="truncate font-medium text-slate-900">{p.name}</p>
                   <p className="truncate text-xs text-slate-500">
                     {p.sku}
-                    {p.brand ? ` · ${p.brand}` : ''} · {t('storeStock')}: <span className="font-semibold text-slate-700">{p.quantity}</span>
+                    {p.brand ? ` · ${p.brand}` : ''} · {t(location === 'WAREHOUSE' ? 'warehouseStock' : 'storeStock')}: <span className="font-semibold text-slate-700">{p.quantity}</span>
                   </p>
                 </div>
 
@@ -423,15 +490,15 @@ export default function InventoryManager({ isAdmin }: { isAdmin: boolean }) {
             <Stat label={t('valueDifference')} value={formatMoney(analysis.valueDiff)} tone={analysis.valueDiff < 0 ? 'bad' : analysis.valueDiff > 0 ? 'warn' : 'good'} />
           </div>
 
-          <DiffSection title={t('shortage')} lines={analysis.shortage} tone="bad" empty={t('none')} />
-          <DiffSection title={t('surplus')} lines={analysis.surplus} tone="warn" empty={t('none')} />
+          <DiffSection title={t('shortage')} lines={analysis.shortage} tone="bad" empty={t('none')} stockLabel={t(location === 'WAREHOUSE' ? 'warehouseStock' : 'storeStock')} />
+          <DiffSection title={t('surplus')} lines={analysis.surplus} tone="warn" empty={t('none')} stockLabel={t(location === 'WAREHOUSE' ? 'warehouseStock' : 'storeStock')} />
 
           <Section title={`${t('notCounted')} (${analysis.notCounted.length})`}>
             {analysis.notCounted.length === 0 ? (
               <p className="text-sm text-slate-400">{t('allCounted')}</p>
             ) : (
               <SimpleTable
-                head={[t('name'), t('sku'), t('storeStock')]}
+                head={[t('name'), t('sku'), t(location === 'WAREHOUSE' ? 'warehouseStock' : 'storeStock')]}
                 rows={analysis.notCounted.map((l) => [l.name, l.sku, String(l.quantity)])}
               />
             )}
@@ -476,6 +543,7 @@ export default function InventoryManager({ isAdmin }: { isAdmin: boolean }) {
               </p>
             </>
           )}
+          {location === 'STORE' && (
           <label className="flex cursor-pointer items-start gap-2 font-medium text-slate-700">
             <input
               type="checkbox"
@@ -488,6 +556,7 @@ export default function InventoryManager({ isAdmin }: { isAdmin: boolean }) {
               <span className="mt-0.5 block text-xs font-normal text-slate-500">{t('applyFromWarehouseNote')}</span>
             </span>
           </label>
+          )}
           <p className="rounded-xl bg-slate-50 px-3 py-2">{t('applyExportFirst')}</p>
         </div>
         <div className="mt-5 flex justify-end gap-3">
@@ -552,7 +621,7 @@ function SimpleTable({ head, rows, tones }: { head: string[]; rows: string[][]; 
   )
 }
 
-function DiffSection({ title, lines, tone, empty }: { title: string; lines: InventoryLine[]; tone: 'warn' | 'bad'; empty: string }) {
+function DiffSection({ title, lines, tone, empty, stockLabel }: { title: string; lines: InventoryLine[]; tone: 'warn' | 'bad'; empty: string; stockLabel: string }) {
   const { t, formatMoney } = useI18n()
   const color = toneText[tone]
   return (
@@ -561,7 +630,7 @@ function DiffSection({ title, lines, tone, empty }: { title: string; lines: Inve
         <p className="text-sm text-slate-400">{empty}</p>
       ) : (
         <SimpleTable
-          head={[t('name'), t('storeStock'), t('countedQty'), t('difference'), t('valueDifference')]}
+          head={[t('name'), stockLabel, t('countedQty'), t('difference'), t('valueDifference')]}
           rows={lines.map((l) => [l.name, String(l.quantity), String(l.counted), signed(l.diff), formatMoney(l.valueDiff)])}
           tones={[undefined, undefined, undefined, `font-semibold ${color}`, color]}
         />

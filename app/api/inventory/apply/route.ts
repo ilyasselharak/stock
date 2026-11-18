@@ -7,21 +7,25 @@ import { apiHandler } from '@/lib/api-handler'
 
 const applySchema = z.object({
   counts: z.record(z.string(), z.coerce.number().int().min(0)),
-  // Keep each product's total: the difference between the count and the store stock is
-  // taken from (or put back into) the warehouse instead of being a gain or loss.
+  // Which stock was counted: the stores (both together) or the warehouse.
+  location: z.enum(['STORE', 'WAREHOUSE']).default('STORE'),
+  // Store counts only. Keep each product's total: the difference between the count and
+  // the store stock is taken from (or put back into) the warehouse instead of being a
+  // gain or loss.
   fromWarehouse: z.boolean().default(false),
 })
 
-// The inventory counts the stores only. Sets each product in `counts` to the given
-// store quantity; products absent from `counts` are left untouched (the client sends 0
-// for uncounted products when the admin chooses to zero them). Each change is logged
-// as an ADJUSTMENT movement whose quantity is the new absolute stock (same meaning as
-// in /api/stock).
+// Sets each product in `counts` to the counted quantity in the counted location;
+// products absent from `counts` are left untouched (the client sends 0 for uncounted
+// products when the admin chooses to zero them). Each change is logged as an
+// ADJUSTMENT movement whose quantity is the new absolute stock (same meaning as in
+// /api/stock).
 export const POST = apiHandler(async function POST(request: NextRequest) {
   const session = await requireAdmin()
   const parsed = applySchema.safeParse(await request.json())
   if (!parsed.success) throw new ApiError(400, zodMessage(parsed.error))
-  const { counts, fromWarehouse } = parsed.data
+  const { counts, location } = parsed.data
+  const fromWarehouse = location === 'STORE' && parsed.data.fromWarehouse
 
   const ids = Object.keys(counts)
   if (ids.length === 0) throw new ApiError(400, 'Nothing counted')
@@ -31,8 +35,30 @@ export const POST = apiHandler(async function POST(request: NextRequest) {
     where: { id: { in: ids } },
     select: { id: true, quantity: true, warehouseQuantity: true },
   })
-  const changes = products.filter((p) => counts[p.id] !== p.quantity)
 
+  if (location === 'WAREHOUSE') {
+    const changes = products.filter((p) => counts[p.id] !== p.warehouseQuantity)
+    if (changes.length > 0) {
+      await prisma.$transaction(
+        changes.flatMap((p) => [
+          prisma.product.update({ where: { id: p.id }, data: { warehouseQuantity: counts[p.id] } }),
+          prisma.stockMovement.create({
+            data: {
+              productId: p.id,
+              quantity: counts[p.id],
+              type: 'ADJUSTMENT',
+              location: 'WAREHOUSE',
+              reason: `Inventaire entrepôt (${p.warehouseQuantity} → ${counts[p.id]})`,
+              userId: session.id,
+            },
+          }),
+        ])
+      )
+    }
+    return NextResponse.json({ updated: changes.length })
+  }
+
+  const changes = products.filter((p) => counts[p.id] !== p.quantity)
   if (changes.length > 0) {
     await prisma.$transaction(
       changes.flatMap((p) => {

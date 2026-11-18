@@ -28,6 +28,8 @@ const reportSchema = z.object({
     .array(z.object({ id: z.string(), name: z.string().min(1), quantity: z.coerce.number().int().min(0) }))
     .default([]),
   startedAt: z.string().optional().nullable(),
+  // Which stock was counted: the stores or the warehouse.
+  location: z.enum(['STORE', 'WAREHOUSE']).default('STORE'),
 })
 
 function signed(n: number) {
@@ -38,18 +40,23 @@ export const POST = apiHandler(async function POST(request: NextRequest) {
   const session = await requireAuth()
   const parsed = reportSchema.safeParse(await request.json())
   if (!parsed.success) throw new ApiError(400, zodMessage(parsed.error))
-  const { counts, extras, startedAt } = parsed.data
+  const { counts, extras, startedAt, location } = parsed.data
 
   const products = await prisma.product.findMany({
     orderBy: { name: 'asc' },
-    select: { id: true, name: true, sku: true, brand: true, quantity: true, basePrice: true },
+    select: { id: true, name: true, sku: true, brand: true, quantity: true, warehouseQuantity: true, basePrice: true },
   })
-  const a = analyzeInventory(products, counts, extras)
+  const a = analyzeInventory(
+    products.map(({ warehouseQuantity, ...p }) => ({ ...p, quantity: location === 'WAREHOUSE' ? warehouseQuantity : p.quantity })),
+    counts,
+    extras
+  )
+  const where = location === 'WAREHOUSE' ? 'entrepôt' : 'magasins'
   const now = new Date()
 
   const { doc, done } = createReportDoc()
   const contentW = doc.page.width - MARGIN * 2
-  const title = "Rapport d'inventaire — magasins"
+  const title = `Rapport d'inventaire — ${where}`
 
   const started = startedAt ? new Date(startedAt) : null
   drawHeaderBand(
@@ -94,7 +101,7 @@ export const POST = apiHandler(async function POST(request: NextRequest) {
     [
       { label: 'PRODUIT', width: contentW - 110 - 80 - 110, value: (l) => l.name },
       { label: 'SKU', width: 110, value: (l) => l.sku },
-      { label: 'MAGASINS', width: 80, align: 'right', value: (l) => String(l.quantity) },
+      { label: location === 'WAREHOUSE' ? 'ENTREPÔT' : 'MAGASINS', width: 80, align: 'right', value: (l) => String(l.quantity) },
       { label: 'VALEUR', width: 110, align: 'right', value: (l) => formatMoney(l.quantity * l.basePrice) },
     ],
     a.notCounted,
@@ -136,7 +143,7 @@ export const POST = apiHandler(async function POST(request: NextRequest) {
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="inventaire-${now.toISOString().slice(0, 10)}.pdf"`,
+      'Content-Disposition': `attachment; filename="inventaire-${location === 'WAREHOUSE' ? 'entrepot' : 'magasins'}-${now.toISOString().slice(0, 10)}.pdf"`,
     },
   })
 })

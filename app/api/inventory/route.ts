@@ -8,7 +8,7 @@ export const GET = apiHandler(async function GET() {
   await requireAuth()
   const products = await prisma.product.findMany({
     orderBy: { name: 'asc' },
-    select: { id: true, name: true, sku: true, brand: true, quantity: true, basePrice: true },
+    select: { id: true, name: true, sku: true, brand: true, quantity: true, warehouseQuantity: true, basePrice: true },
   })
   return NextResponse.json({ products })
 })
