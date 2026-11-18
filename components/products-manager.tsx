@@ -30,6 +30,9 @@ type Product = {
 
 const PER_PAGE = 10
 
+type Location = 'STORE' | 'WAREHOUSE'
+const LOCATION_KEY = 'products-location'
+
 export default function ProductsManager({ isAdmin }: { isAdmin: boolean }) {
   const { t, formatMoney } = useI18n()
   const { toast } = useToast()
@@ -37,6 +40,14 @@ export default function ProductsManager({ isAdmin }: { isAdmin: boolean }) {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [stockFilter, setStockFilter] = useState<'all' | 'in' | 'out'>('all')
+  // The page shows one location's stock at a time; the stock filter applies to it.
+  const [location, setLocation] = useState<Location>('STORE')
+  // Read after mount so the server render and the first client render match.
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(LOCATION_KEY) === 'WAREHOUSE') setLocation('WAREHOUSE')
+    } catch {}
+  }, [])
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [total, setTotal] = useState(0)
@@ -60,10 +71,10 @@ export default function ProductsManager({ isAdmin }: { isAdmin: boolean }) {
     imageError: '',
   })
 
-  const fetchProducts = useCallback(async (q: string, p: number, stock: string) => {
+  const fetchProducts = useCallback(async (q: string, p: number, stock: string, loc: Location) => {
     setLoading(true)
     try {
-      const params = new URLSearchParams({ page: String(p) })
+      const params = new URLSearchParams({ page: String(p), location: loc })
       if (q) params.set('q', q)
       if (stock !== 'all') params.set('stock', stock)
       const res = await fetch(`/api/products?${params}`)
@@ -81,19 +92,26 @@ export default function ProductsManager({ isAdmin }: { isAdmin: boolean }) {
   useEffect(() => {
     const delay = setTimeout(() => {
       setPage(1)
-      fetchProducts(search, 1, stockFilter)
+      fetchProducts(search, 1, stockFilter, location)
     }, 300)
     return () => clearTimeout(delay)
   }, [search])
 
   useEffect(() => {
     setPage(1)
-    fetchProducts(search, 1, stockFilter)
-  }, [stockFilter])
+    fetchProducts(search, 1, stockFilter, location)
+  }, [stockFilter, location])
 
   useEffect(() => {
-    fetchProducts(search, page, stockFilter)
+    fetchProducts(search, page, stockFilter, location)
   }, [page])
+
+  function switchLocation(next: Location) {
+    setLocation(next)
+    try {
+      localStorage.setItem(LOCATION_KEY, next)
+    } catch {}
+  }
 
   function openCreate() {
     setEditing(null)
@@ -168,7 +186,7 @@ export default function ProductsManager({ isAdmin }: { isAdmin: boolean }) {
       }
       toast(editing ? t('productUpdated') : t('productCreated'))
       setModalOpen(false)
-      fetchProducts(search, page, stockFilter)
+      fetchProducts(search, page, stockFilter, location)
     } finally {
       setSaving(false)
     }
@@ -181,7 +199,7 @@ export default function ProductsManager({ isAdmin }: { isAdmin: boolean }) {
     if (res.ok) {
       toast(t('productDeleted'))
       setDeleting(null)
-      fetchProducts(search, page, stockFilter)
+      fetchProducts(search, page, stockFilter, location)
     } else {
       const data = await res.json()
       toast(data.error || 'Error', 'error')
@@ -199,7 +217,7 @@ export default function ProductsManager({ isAdmin }: { isAdmin: boolean }) {
         return
       }
       toast(`${t('stockSynced')}: ${data.updated}/${data.checked}`)
-      fetchProducts(search, page, stockFilter)
+      fetchProducts(search, page, stockFilter, location)
     } finally {
       setSyncing(false)
     }
@@ -221,6 +239,21 @@ export default function ProductsManager({ isAdmin }: { isAdmin: boolean }) {
           ) : undefined
         }
       />
+
+      <div className="mb-4 inline-flex rounded-xl border border-slate-200 bg-white p-1">
+        {(['STORE', 'WAREHOUSE'] as const).map((l) => (
+          <button
+            key={l}
+            type="button"
+            onClick={() => switchLocation(l)}
+            className={`rounded-lg px-4 py-1.5 text-sm font-medium transition ${
+              location === l ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            {t(l === 'WAREHOUSE' ? 'warehouse' : 'stores')}
+          </button>
+        ))}
+      </div>
 
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
         <SearchInput value={search} onChange={setSearch} placeholder={t('searchByNameSku')} />
@@ -256,8 +289,7 @@ export default function ProductsManager({ isAdmin }: { isAdmin: boolean }) {
                   <th className="px-4 py-3">{t('brand')}</th>
                   <th className="px-4 py-3">{t('sku')}</th>
                   <th className="px-4 py-3">{t('basePrice')}</th>
-                  <th className="px-4 py-3">{t('storeStock')}</th>
-                  <th className="px-4 py-3">{t('warehouseStock')}</th>
+                  <th className="px-4 py-3">{t(location === 'WAREHOUSE' ? 'warehouseStock' : 'storeStock')}</th>
                   <th className="px-4 py-3 text-right">{t('actions')}</th>
                 </tr>
               </thead>
@@ -281,11 +313,15 @@ export default function ProductsManager({ isAdmin }: { isAdmin: boolean }) {
                     <td className="px-4 py-3 text-slate-500">{p.sku}</td>
                     <td className="px-4 py-3 text-slate-700">{formatMoney(p.basePrice)}</td>
                     <td className="px-4 py-3">
-                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${p.quantity === 0 ? 'bg-rose-50 text-rose-600' : p.quantity <= 5 ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                        {p.quantity}
-                      </span>
+                      {(() => {
+                        const qty = location === 'WAREHOUSE' ? (p.warehouseQuantity ?? 0) : p.quantity
+                        return (
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${qty <= 0 ? 'bg-rose-50 text-rose-600' : qty <= 5 ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                            {qty}
+                          </span>
+                        )
+                      })()}
                     </td>
-                    <td className="px-4 py-3 font-semibold text-slate-600">{p.warehouseQuantity ?? 0}</td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">
                         <button

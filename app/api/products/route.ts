@@ -22,6 +22,8 @@ export const GET = apiHandler(async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const q = searchParams.get('q') || ''
   const stock = searchParams.get('stock') || 'all'
+  // Which stock the in/out filter looks at: the stores (default) or the warehouse.
+  const field = searchParams.get('location') === 'WAREHOUSE' ? 'warehouseQuantity' : 'quantity'
   const page = parseInt(searchParams.get('page') || '1')
   const rawLimit = parseInt(searchParams.get('limit') || '10')
   const limit = Math.min(rawLimit, 500)
@@ -37,8 +39,8 @@ export const GET = apiHandler(async function GET(request: NextRequest) {
           ],
         }
       : {}),
-    ...(stock === 'out' ? { quantity: { lte: 0 } } : {}),
-    ...(stock === 'in' ? { quantity: { gt: 0 } } : {}),
+    ...(stock === 'out' ? { [field]: { lte: 0 } } : {}),
+    ...(stock === 'in' ? { [field]: { gt: 0 } } : {}),
   }
 
   const [products, total] = await Promise.all([
